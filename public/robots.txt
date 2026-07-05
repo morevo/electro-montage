@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /node_modules/
+
+Sitemap: https://elektromontazh.ru/sitemap.xml
+
+Host: https://elektromontazh.ru

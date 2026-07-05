@@ -1,0 +1,17 @@
+{
+  "name": "ЭлектроМонтаж — Профессиональные электромонтажные работы",
+  "short_name": "ЭлектроМонтаж",
+  "description": "Профессиональные электромонтажные работы в Москве и МО. Монтаж проводки, щитки, освещение, умный дом.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#f59e0b",
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

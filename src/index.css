@@ -1,0 +1,187 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Dark theme (default) ──────────────────────────────── */
+:root {
+  --color-primary:       #0a1628;
+  --color-primary-light: #0f2140;
+  --color-primary-dark:  #060e1a;
+  --color-surface:       rgba(15, 33, 64, 0.5);
+  --color-on-surface:    #ffffff;
+  --color-on-muted:      #9ca3af;
+  --color-border:        rgba(255, 255, 255, 0.07);
+}
+
+/* ─── Light theme ───────────────────────────────────────── */
+html.light {
+  --color-primary:       #f0f4ff;
+  --color-primary-light: #e2e9f8;
+  --color-primary-dark:  #dde5f5;
+  --color-surface:       rgba(255, 255, 255, 0.7);
+  --color-on-surface:    #0f172a;
+  --color-on-muted:      #475569;
+  --color-border:        rgba(15, 33, 64, 0.1);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    overflow-x: hidden;
+  }
+
+  /* Плавный переход цветов темы - применяется ко всем элементам */
+  html {
+    transition: background-color 600ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  *,
+  *::before,
+  *::after {
+    transition: background-color 600ms cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 600ms cubic-bezier(0.4, 0, 0.2, 1),
+                color 600ms cubic-bezier(0.4, 0, 0.2, 1),
+                fill 600ms cubic-bezier(0.4, 0, 0.2, 1),
+                stroke 600ms cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 600ms cubic-bezier(0.4, 0, 0.2, 1),
+                text-shadow 600ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Исключаем элементы с собственными анимациями */
+  [data-no-transition], canvas {
+    transition: none !important;
+  }
+
+  body {
+    @apply bg-primary text-on-surface font-sans;
+  }
+
+  ::-webkit-scrollbar { 
+    width: 8px; 
+  }
+  ::-webkit-scrollbar-track { 
+    background: var(--color-primary-dark);
+    transition: background-color 500ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  ::-webkit-scrollbar-thumb { 
+    background: rgba(245, 158, 11, 0.5); 
+    border-radius: 9999px;
+    transition: background-color 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  ::-webkit-scrollbar-thumb:hover { 
+    background: #f59e0b; 
+  }
+}
+
+@layer components {
+  .section-title {
+    @apply text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-center mb-4 text-on-surface;
+  }
+
+  .section-subtitle {
+    @apply text-on-muted text-center text-base sm:text-lg max-w-2xl mx-auto mb-8 sm:mb-12;
+  }
+
+  .glow-text {
+    text-shadow: 0 0 20px rgba(245, 158, 11, 0.5), 0 0 40px rgba(245, 158, 11, 0.3);
+  }
+
+  .glow-box {
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.15), 0 0 30px rgba(245, 158, 11, 0.05);
+  }
+
+  .btn-primary {
+    @apply bg-accent hover:bg-accent-light text-primary font-bold py-2.5 px-5 sm:py-3 sm:px-8 rounded-lg
+           transform hover:scale-105 inline-flex items-center justify-center text-sm sm:text-base;
+    /* Комбинируем переходы темы + интерактивные эффекты */
+    transition: background-color 600ms cubic-bezier(0.4, 0, 0.2, 1),
+                color 600ms cubic-bezier(0.4, 0, 0.2, 1),
+                transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+
+  .btn-outline {
+    @apply border-2 border-accent text-accent hover:bg-accent hover:text-primary
+           font-bold py-2.5 px-5 sm:py-3 sm:px-8 rounded-lg text-sm sm:text-base;
+    /* Комбинируем переходы темы + интерактивные эффекты */
+    transition: background-color 600ms cubic-bezier(0.4, 0, 0.2, 1),
+                color 600ms cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 600ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+
+  /* Карточки и поверхности адаптивные */
+  .card {
+    background: var(--color-surface);
+    border-color: var(--color-border);
+  }
+}
+
+/* Переопределяем стандартные transition классы Tailwind для совместимости с темой */
+/* Размещаем ВНЕ @layer чтобы иметь приоритет над Tailwind */
+.transition-colors {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke !important;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1) !important;
+  transition-duration: 600ms !important;
+}
+
+.transition-all {
+  transition-property: all !important;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1) !important;
+  transition-duration: 600ms !important;
+}
+
+/* Быстрые переходы для hover эффектов поверх глобальных */
+.duration-300 {
+  transition-duration: 300ms !important;
+}
+
+.duration-500 {
+  transition-duration: 500ms !important;
+}
+
+/* ─── Preloader: disable global theme transitions ──────── */
+.preloader-bg,
+.preloader-bg *,
+.preloader-bg *::before,
+.preloader-bg *::after {
+  transition: none !important;
+}
+
+/* ─── Electric hero background ──────────────────────────── */
+.electric-bg {
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(245, 158, 11, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(234, 179, 8, 0.06)  0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(245, 158, 11, 0.04) 0%, transparent 50%),
+    var(--color-primary);
+}
+
+html.light .electric-bg {
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(245, 158, 11, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(234, 179, 8, 0.08)  0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(245, 158, 11, 0.06) 0%, transparent 50%),
+    var(--color-primary);
+}
+
+/* ─── Animated electric line ────────────────────────────── */
+@keyframes electric-flow {
+  0%   { background-position: 0%   0%; }
+  100% { background-position: 200% 0%; }
+}
+
+.electric-line {
+  background: linear-gradient(90deg, transparent, #f59e0b, transparent);
+  background-size: 200% 100%;
+  animation: electric-flow 2s linear infinite;
+  transition: none !important;
+}
+
+/* ─── Swiper ─────────────────────────────────────────────── */
+.swiper-pagination-bullet {
+  background: #f59e0b !important;
+  opacity: 0.5 !important;
+}
+.swiper-pagination-bullet-active {
+  opacity: 1 !important;
+}
