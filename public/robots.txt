@@ -2,6 +2,6 @@ User-agent: *
 Allow: /
 Disallow: /node_modules/
 
-Sitemap: https://elektromontazh.ru/sitemap.xml
+Sitemap: https://abcn77.ru/sitemap.xml
 
-Host: https://elektromontazh.ru
+Host: https://abcn77.ru

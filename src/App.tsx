@@ -72,7 +72,7 @@ function HomePage() {
       <Helmet>
         <title>ЭлектроМонтаж — Профессиональные электромонтажные работы в Москве и МО</title>
         <meta name="description" content="Профессиональные электромонтажные работы в Москве и Московской области. Монтаж проводки, установка щитков, освещение, розетки, умный дом. Гарантия качества. Бесплатный выезд на замер." />
-        <link rel="canonical" href="https://elektromontazh.ru/" />
+        <link rel="canonical" href="https://abcn77.ru/" />
         <script type="application/ld+json">{JSON.stringify(faqSchema)}</script>
       </Helmet>
 

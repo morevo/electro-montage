@@ -33,7 +33,7 @@ export default function ServicePage() {
   const Icon = service.icon
   const pageTitle = `${service.title} — ЭлектроМонтаж | Профессиональные электромонтажные работы`
   const pageDescription = service.fullDescription
-  const pageUrl = `https://elektromontazh.ru/services/${service.id}`
+  const pageUrl = `https://abcn77.ru/services/${service.id}`
 
   const serviceSchema = {
     '@context': 'https://schema.org',
@@ -43,7 +43,7 @@ export default function ServicePage() {
     provider: {
       '@type': 'LocalBusiness',
       name: 'ЭлектроМонтаж',
-      url: 'https://elektromontazh.ru/',
+      url: 'https://abcn77.ru/',
     },
     areaServed: {
       '@type': 'City',
@@ -70,14 +70,14 @@ export default function ServicePage() {
         <meta property="og:title" content={pageTitle} />
         <meta property="og:description" content={pageDescription} />
         <meta property="og:url" content={pageUrl} />
-        <meta property="og:image" content="https://elektromontazh.ru/og-image.jpg" />
+        <meta property="og:image" content="https://abcn77.ru/og-image.jpg" />
         <meta property="og:locale" content="ru_RU" />
         <meta property="og:site_name" content="ЭлектроМонтаж" />
 
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={pageTitle} />
         <meta name="twitter:description" content={pageDescription} />
-        <meta name="twitter:image" content="https://elektromontazh.ru/og-image.jpg" />
+        <meta name="twitter:image" content="https://abcn77.ru/og-image.jpg" />
 
         <script type="application/ld+json">{JSON.stringify(serviceSchema)}</script>
       </Helmet>
