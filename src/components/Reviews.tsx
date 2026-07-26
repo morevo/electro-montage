@@ -76,7 +76,7 @@ export default function Reviews() {
   const inView = useInView(ref, { once: true, margin: '-100px' })
 
   return (
-    <section id="reviews" className="py-10 sm:py-14 md:py-20 relative" ref={ref}>
+    <section id="reviews" className="py-6 relative" ref={ref}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <motion.div
           initial={{ opacity: 0, y: 40 }}

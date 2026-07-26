@@ -14,7 +14,6 @@ const navLinks: NavLink[] = [
   { label: 'Услуги', href: '#services' },
   { label: 'Портфолио', href: '#portfolio' },
   { label: 'Преимущества', href: '#advantages' },
-  { label: 'Отзывы', href: '#reviews' },
   { label: 'Контакты', href: '#contacts' },
 ]
 
@@ -83,8 +82,8 @@ export default function Header() {
             <Link to="/" onClick={handleLogoClick} className="flex items-center gap-2 group">
               <HiOutlineLightningBolt className="text-accent text-3xl group-hover:rotate-12 transition-transform" />
               <span className="text-base sm:text-xl font-bold">
-                <span className="text-accent">Электро</span>
-                <span className="text-on-surface">Монтаж</span>
+                <span className="text-on-surface">Про</span>
+                <span className="text-accent">ЭлектроМонтаж</span>
               </span>
             </Link>
           </motion.div>

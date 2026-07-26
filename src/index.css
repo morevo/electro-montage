@@ -28,6 +28,7 @@ html.light {
   html {
     scroll-behavior: smooth;
     overflow-x: hidden;
+    scrollbar-gutter: stable;
   }
 
   /* Плавный переход цветов темы - применяется ко всем элементам */

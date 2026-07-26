@@ -1,17 +1,9 @@
 import { HiOutlineLightningBolt } from 'react-icons/hi'
-import { FaTelegram, FaWhatsapp, FaVk } from 'react-icons/fa'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { IconType } from 'react-icons'
 
 interface NavLink {
   label: string
   href: string
-}
-
-interface SocialLink {
-  icon: IconType
-  href: string
-  label: string
 }
 
 const navLinks: NavLink[] = [
@@ -19,14 +11,7 @@ const navLinks: NavLink[] = [
   { label: 'Услуги', href: '#services' },
   { label: 'Портфолио', href: '#portfolio' },
   { label: 'Преимущества', href: '#advantages' },
-  { label: 'Отзывы', href: '#reviews' },
   { label: 'Контакты', href: '#contacts' },
-]
-
-const socialLinks: SocialLink[] = [
-  { icon: FaTelegram, href: '#', label: 'Telegram' },
-  { icon: FaWhatsapp, href: '#', label: 'WhatsApp' },
-  { icon: FaVk, href: '#', label: 'VK' },
 ]
 
 export default function Footer() {
@@ -53,12 +38,12 @@ export default function Footer() {
             <Link to="/" className="flex items-center gap-2 mb-4 group">
               <HiOutlineLightningBolt className="text-accent text-2xl" />
               <span className="text-lg font-bold">
-                <span className="text-accent">Электро</span>
-                <span className="text-on-surface">Монтаж</span>
+                <span className="text-on-surface">Про</span>
+                <span className="text-accent">ЭлектроМонтаж</span>
               </span>
             </Link>
             <p className="text-on-muted text-sm leading-relaxed">
-              Профессиональные электромонтажные работы в Москве и области. Гарантия качества.
+              Профессиональные электромонтажные работы в Москве и области, в том числе для частного сектора. Гарантия качества.
             </p>
           </div>
 
@@ -98,32 +83,19 @@ export default function Footer() {
 
           <div>
             <h4 className="text-on-surface font-bold mb-4">Контакты</h4>
-            <p className="text-on-muted text-sm mb-1">+7 (999) 123-45-67</p>
-            <p className="text-on-muted text-sm mb-4 break-all sm:break-normal">info@electromontage.ru</p>
-            <div className="flex gap-3">
-              {socialLinks.map((link, i) => {
-                const SocialIcon = link.icon
-                return (
-                  <a
-                    key={i}
-                    href={link.href}
-                    aria-label={link.label}
-                    className="w-10 h-10 rounded-lg bg-surface border border-[var(--color-border)]
-                               flex items-center justify-center text-on-muted hover:text-accent
-                               hover:border-accent/30 transition-all"
-                  >
-                    <SocialIcon className="text-lg" />
-                  </a>
-                )
-              })}
-            </div>
+            <a href="tel:+79258432322" className="block text-on-muted hover:text-accent transition-colors text-sm mb-1">
+              +7 (925) 843-23-22
+            </a>
+            <a href="mailto:8432322@mail.ru" className="block text-on-muted hover:text-accent transition-colors text-sm break-all sm:break-normal">
+              8432322@mail.ru
+            </a>
           </div>
         </div>
 
         <div className="h-px bg-[var(--color-border)] mb-6" />
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-on-muted text-sm">
-          <p>&copy; 2024 ЭлектроМонтаж. Все права защищены.</p>
+          <p>&copy; 2026 ПроЭлектроМонтаж. Все права защищены.</p>
           <p>Сделано с ⚡ для вашего комфорта</p>
         </div>
       </div>

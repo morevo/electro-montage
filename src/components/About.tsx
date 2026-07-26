@@ -48,7 +48,7 @@ interface Stat {
 const stats: Stat[] = [
   { icon: HiOutlineLightningBolt, value: 12, suffix: '+', label: 'Лет опыта' },
   { icon: HiOutlineShieldCheck, value: 850, suffix: '+', label: 'Выполненных проектов' },
-  { icon: HiOutlineUserGroup, value: 600, suffix: '+', label: 'Довольных клиентов' },
+  { icon: HiOutlineUserGroup, value: 960, suffix: '+', label: 'Довольных клиентов' },
 ]
 
 export default function About() {
@@ -56,7 +56,7 @@ export default function About() {
   const inView = useInView(ref, { once: true, margin: '-100px' })
 
   return (
-    <section id="about" className="py-10 sm:py-14 md:py-20 relative" ref={ref}>
+    <section id="about" className="py-6 relative" ref={ref}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <motion.div
           initial={{ opacity: 0, y: 40 }}

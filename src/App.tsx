@@ -1,8 +1,8 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Helmet } from 'react-helmet-async'
-import AuthScreen from './components/AuthScreen'
+// import AuthScreen from './components/AuthScreen' // авторизация отключена — сайт открытый
 import Preloader from './components/Preloader'
 import Header from './components/Header'
 import Hero from './components/Hero'
@@ -10,7 +10,6 @@ import About from './components/About'
 import Services from './components/Services'
 import Portfolio from './components/Portfolio'
 import Advantages from './components/Advantages'
-import Reviews from './components/Reviews'
 import Contacts from './components/Contacts'
 import Footer from './components/Footer'
 import ServicePage from './pages/ServicePage'
@@ -61,6 +60,15 @@ const faqSchema = {
 }
 
 function HomePage() {
+  useEffect(() => {
+    const saved = sessionStorage.getItem('homeScrollY')
+    if (saved === null) return
+    sessionStorage.removeItem('homeScrollY')
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: parseInt(saved, 10), behavior: 'auto' })
+    })
+  }, [])
+
   return (
     <motion.div
       className="min-h-screen"
@@ -83,7 +91,6 @@ function HomePage() {
         <Services />
         <Portfolio />
         <Advantages />
-        <Reviews />
         <Contacts />
       </main>
       <Footer />
@@ -105,17 +112,16 @@ function AnimatedRoutes() {
 }
 
 export default function App() {
-  const [authed, setAuthed] = useState(false)
+  // Авторизация отключена — сайт открытый, показываем сразу прелоадер и контент.
+  // const [authed, setAuthed] = useState(false)
+  // const handleAuth = useCallback(() => setAuthed(true), [])
   const [loading, setLoading] = useState(true)
-  const handleAuth = useCallback(() => setAuthed(true), [])
   const handlePreloaderComplete = useCallback(() => setLoading(false), [])
 
   return (
     <BrowserRouter basename="/electro-montage/">
       <AnimatePresence mode="wait">
-        {!authed ? (
-          <AuthScreen key="auth" onAuth={handleAuth} />
-        ) : loading ? (
+        {loading ? (
           <Preloader key="preloader" onComplete={handlePreloaderComplete} />
         ) : (
           <motion.div

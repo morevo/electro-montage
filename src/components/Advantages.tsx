@@ -19,13 +19,13 @@ interface Advantage {
 const advantages: Advantage[] = [
   {
     icon: HiOutlineShieldCheck,
-    title: 'Гарантия 5 лет',
-    description: 'Предоставляем расширенную гарантию на все виды выполненных работ',
+    title: 'Гарантия 1 год',
+    description: 'Предоставляем гарантию на все виды выполненных работ',
   },
   {
     icon: HiOutlineBadgeCheck,
-    title: 'Лицензии и допуски',
-    description: 'Все необходимые лицензии, допуски СРО и сертификаты',
+    title: 'Лицензии',
+    description: 'Все необходимые лицензии и сертификаты',
   },
   {
     icon: HiOutlineClock,
@@ -40,7 +40,7 @@ const advantages: Advantage[] = [
   {
     icon: HiOutlineUserGroup,
     title: 'Опытная команда',
-    description: 'Специалисты с опытом от 5 лет, регулярное повышение квалификации',
+    description: 'Специалисты с опытом от 10 лет, регулярное повышение квалификации',
   },
   {
     icon: HiOutlineCube,
@@ -54,7 +54,7 @@ export default function Advantages() {
   const inView = useInView(ref, { once: true, margin: '-100px' })
 
   return (
-    <section id="advantages" className="py-10 sm:py-14 md:py-20 bg-primary-dark/50 relative" ref={ref}>
+    <section id="advantages" className="py-6 bg-primary-dark/50 relative" ref={ref}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <motion.div
           initial={{ opacity: 0, y: 40 }}

@@ -95,7 +95,7 @@ export default function Hero() {
   }
 
   return (
-    <section id="hero" className="relative min-h-[85vh] sm:min-h-screen flex items-center justify-center overflow-hidden electric-bg">
+    <section id="hero" className="relative flex items-center justify-center overflow-hidden electric-bg pt-28 sm:pt-32">
       <ElectricParticles />
 
       <div className="absolute inset-0 pointer-events-none"
@@ -133,14 +133,13 @@ export default function Hero() {
           initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={smooth(0.6)}
           className="text-on-muted text-sm sm:text-lg md:text-xl mb-8 sm:mb-10 max-w-2xl mx-auto"
         >
-          Выполняем полный спектр электромонтажных работ для квартир, домов и коммерческих объектов. Гарантия качества и
-          безопасности.
+          Выполняем полный спектр электромонтажных работ для частного сектора, квартир, домов и коммерческих объектов.
+          Гарантия качества и безопасности.
         </motion.p>
 
-        {/* 4. Кнопки — 0.75s / 0.9s */}
+        {/* 4. Кнопки — 0.75s */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
           {[
-            { label: "Рассчитать стоимость", href: "#contacts", cls: "btn-primary text-sm sm:text-lg" },
             { label: "Наши услуги", href: "#services", cls: "btn-outline text-sm sm:text-lg" },
           ].map(({ label, href, cls }, i) => (
             <motion.div
@@ -160,15 +159,15 @@ export default function Hero() {
             </motion.div>
             ))}
         </div>
-      </div>
 
-      {/* 5. Стрелка — 1.1s */}
-      <motion.a
-        href="#about" onClick={handleScroll} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={smooth(1.1)}
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 text-accent animate-bounce-slow cursor-pointer"
-      >
-        <FiChevronDown className="text-4xl"/>
-      </motion.a>
+        {/* 5. Стрелка — 1.1s. Обычный блок в потоке, а не absolute — чтобы никогда не перекрывала кнопку выше при короткой секции */}
+        <motion.a
+          href="#about" onClick={handleScroll} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={smooth(1.1)}
+          className="mt-12 inline-block text-accent cursor-pointer"
+        >
+          <FiChevronDown className="text-4xl animate-bounce-slow"/>
+        </motion.a>
+      </div>
     </section>
   )
 }

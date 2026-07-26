@@ -9,7 +9,7 @@ export default function Services() {
   const inView = useInView(ref, { once: true, margin: '-100px' })
 
   return (
-    <section id="services" className="py-10 sm:py-14 md:py-20 bg-primary-dark/50 relative" ref={ref}>
+    <section id="services" className="py-6 bg-primary-dark/50 relative" ref={ref}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <motion.div
           initial={{ opacity: 0, y: 40 }}
@@ -37,6 +37,7 @@ export default function Services() {
               >
                 <Link
                   to={`/services/${service.id}`}
+                  onClick={() => sessionStorage.setItem('homeScrollY', String(window.scrollY))}
                   className="group relative p-4 sm:p-6 md:p-8 rounded-2xl bg-surface border border-[var(--color-border)]
                              hover:border-accent/40 transition-all duration-300 overflow-hidden flex flex-col h-full block"
                 >
