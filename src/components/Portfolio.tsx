@@ -15,16 +15,18 @@ interface Project {
   gradient: string
 }
 
-// Заголовки, категории и фото — временная заглушка, заменить когда придёт архив с фото от заказчика.
+// Категории — по разделам услуг. Фото пока заглушки (градиенты), заменить когда придёт архив от заказчика.
 const projects: Project[] = [
-  { id: 1, title: 'Электрика в студии 45м²', category: 'Квартиры', gradient: 'from-amber-900/40 to-yellow-900/20' },
-  { id: 2, title: 'Коттедж 200м²', category: 'Дома', gradient: 'from-blue-900/40 to-cyan-900/20' },
-  { id: 3, category: 'Офисы', gradient: 'from-purple-900/40 to-indigo-900/20' },
-  { id: 4, title: 'Трёхкомнатная квартира', category: 'Квартиры', gradient: 'from-orange-900/40 to-red-900/20' },
-  { id: 5, category: 'Промышленные', gradient: 'from-emerald-900/40 to-green-900/20' },
-  { id: 6, title: 'Загородный дом', category: 'Дома', gradient: 'from-teal-900/40 to-cyan-900/20' },
-  { id: 7, category: 'Офисы', gradient: 'from-rose-900/40 to-pink-900/20' },
-  { id: 8, title: 'Производственный цех', category: 'Промышленные', gradient: 'from-slate-700/40 to-zinc-900/20' },
+  { id: 1, category: 'Подключение к электросетям', gradient: 'from-blue-900/40 to-cyan-900/20' },
+  { id: 2, category: 'Подключение к электросетям', gradient: 'from-sky-900/40 to-blue-900/20' },
+  { id: 3, category: 'Электропроводка', gradient: 'from-amber-900/40 to-yellow-900/20' },
+  { id: 4, category: 'Электропроводка', gradient: 'from-orange-900/40 to-red-900/20' },
+  { id: 5, category: 'Уличное освещение', gradient: 'from-purple-900/40 to-indigo-900/20' },
+  { id: 6, category: 'Уличное освещение', gradient: 'from-violet-900/40 to-purple-900/20' },
+  { id: 7, category: 'Заземление', gradient: 'from-emerald-900/40 to-green-900/20' },
+  { id: 8, category: 'Заземление', gradient: 'from-teal-900/40 to-emerald-900/20' },
+  { id: 9, category: 'Видеонаблюдение', gradient: 'from-slate-700/40 to-zinc-900/20' },
+  { id: 10, category: 'Видеонаблюдение', gradient: 'from-rose-900/40 to-pink-900/20' },
 ]
 
 // Разные пропорции — чтобы ряды выглядели живо, а не однообразной сеткой.

@@ -96,7 +96,7 @@ export default function Footer() {
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-on-muted text-sm">
           <p>&copy; 2026 ПроЭлектроМонтаж. Все права защищены.</p>
-          <p>Сделано с ⚡ для вашего комфорта</p>
+          <p>Сделано с⚡для вашего комфорта</p>
         </div>
       </div>
     </footer>

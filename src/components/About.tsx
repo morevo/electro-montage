@@ -78,10 +78,7 @@ export default function About() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="relative"
           >
-            <div className="aspect-[4/3] rounded-2xl border border-accent/20 hover:border-accent/40 flex items-center justify-center glow-box overflow-hidden relative transition-all"
-                 style={{
-                   background: 'linear-gradient(135deg, #0f2140 0%, #060e1a 100%)'
-                 }}>
+            <div className="aspect-[4/3] rounded-2xl border border-accent/20 hover:border-accent/40 flex items-center justify-center glow-box overflow-hidden relative transition-all bg-surface">
               {/* Декоративная сетка */}
               <div className="absolute inset-0 opacity-5 pointer-events-none"
                    style={{
