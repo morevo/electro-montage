@@ -119,7 +119,7 @@ export default function App() {
   const handlePreloaderComplete = useCallback(() => setLoading(false), [])
 
   return (
-    <BrowserRouter basename="/electro-montage/">
+    <BrowserRouter basename="/">
       <AnimatePresence mode="wait">
         {loading ? (
           <Preloader key="preloader" onComplete={handlePreloaderComplete} />
