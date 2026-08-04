@@ -31,7 +31,7 @@ export default function ServicePage() {
   }
 
   const Icon = service.icon
-  const pageTitle = `${service.title} — ЭлектроМонтаж | Профессиональные электромонтажные работы`
+  const pageTitle = `${service.title} — ПроЭлектроМонтаж | Профессиональные электромонтажные работы`
   const pageDescription = service.fullDescription
   const pageUrl = `https://abcn77.ru/services/${service.id}`
 
@@ -42,7 +42,7 @@ export default function ServicePage() {
     description: service.fullDescription,
     provider: {
       '@type': 'LocalBusiness',
-      name: 'ЭлектроМонтаж',
+      name: 'ПроЭлектроМонтаж',
       url: 'https://abcn77.ru/',
     },
     areaServed: {
@@ -72,7 +72,7 @@ export default function ServicePage() {
         <meta property="og:url" content={pageUrl} />
         <meta property="og:image" content="https://abcn77.ru/og-image.jpg" />
         <meta property="og:locale" content="ru_RU" />
-        <meta property="og:site_name" content="ЭлектроМонтаж" />
+        <meta property="og:site_name" content="ПроЭлектроМонтаж" />
 
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={pageTitle} />

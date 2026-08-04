@@ -13,6 +13,7 @@ import Advantages from './components/Advantages'
 import Contacts from './components/Contacts'
 import Footer from './components/Footer'
 import ServicePage from './pages/ServicePage'
+import NotFound from './pages/NotFound'
 
 const pageTransition = {
   initial: { opacity: 0, y: 24 },
@@ -78,7 +79,7 @@ function HomePage() {
       exit="exit"
     >
       <Helmet>
-        <title>ЭлектроМонтаж — Профессиональные электромонтажные работы в Москве и МО</title>
+        <title>ПроЭлектроМонтаж — Профессиональные электромонтажные работы в Москве и МО</title>
         <meta name="description" content="Профессиональные электромонтажные работы в Москве и Московской области. Монтаж проводки, установка щитков, освещение, розетки, умный дом. Гарантия качества. Бесплатный выезд на замер." />
         <link rel="canonical" href="https://abcn77.ru/" />
         <script type="application/ld+json">{JSON.stringify(faqSchema)}</script>
@@ -106,6 +107,7 @@ function AnimatedRoutes() {
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<HomePage />} />
         <Route path="/services/:id" element={<ServicePage />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </AnimatePresence>
   )
