@@ -1,40 +1,150 @@
-name: Deploy to GitHub Pages
+name: Deploy to reg.ru
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
+env:
+  REG_RU_HOST: ${{ secrets.REG_RU_HOST }}
+  REG_RU_USER: ${{ secrets.REG_RU_USER }}
+  REG_RU_PASSWORD: ${{ secrets.REG_RU_PASSWORD }}
+  REG_RU_FRONTEND_PATH: ${{ secrets.REG_RU_FRONTEND_PATH }}
+  # Для бэкенда на VPS:
+  REG_RU_SSH_HOST: ${{ secrets.REG_RU_SSH_HOST }}
+  REG_RU_SSH_USER: ${{ secrets.REG_RU_SSH_USER }}
+  REG_RU_SSH_KEY: ${{ secrets.REG_RU_SSH_KEY }}
+  REG_RU_SSH_PORT: ${{ secrets.REG_RU_SSH_PORT || '22' }}
+  REG_RU_BACKEND_PATH: ${{ secrets.REG_RU_BACKEND_PATH }}
 
 jobs:
-  build:
+  # ──────────────────────────────────────────────
+  # FRONTEND: сборка и деплой по FTP/SFTP на shared-хостинг
+  # ──────────────────────────────────────────────
+  deploy-frontend:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-  deploy:
-    needs: build
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Deploy to reg.ru via FTP
+        if: env.REG_RU_HOST != ''
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ env.REG_RU_HOST }}
+          username: ${{ env.REG_RU_USER }}
+          password: ${{ env.REG_RU_PASSWORD }}
+          local-dir: ./frontend/dist/
+          server-dir: ${{ env.REG_RU_FRONTEND_PATH }}
+          protocol: ftps
+          port: 21
+          # Исключаем лишнее
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/*.log
+
+      - name: Deploy to reg.ru via SFTP (альтернатива)
+        if: env.REG_RU_HOST != '' && env.REG_RU_SSH_HOST != ''
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ env.REG_RU_SSH_HOST }}
+          username: ${{ env.REG_RU_SSH_USER }}
+          key: ${{ env.REG_RU_SSH_KEY }}
+          port: ${{ env.REG_RU_SSH_PORT }}
+          source: "frontend/dist/*"
+          target: ${{ env.REG_RU_FRONTEND_PATH }}
+          strip_components: 1
+
+  # ──────────────────────────────────────────────
+  # BACKEND: сборка Docker-образа и деплой на VPS
+  # ──────────────────────────────────────────────
+  deploy-backend:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    defaults:
+      run:
+        working-directory: ./backend
     steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: false
+          tags: electromontage-backend:latest
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Save Docker image
+        run: docker save electromontage-backend:latest | gzip > backend-image.tar.gz
+
+      - name: Deploy to reg.ru VPS via SSH
+        if: env.REG_RU_SSH_HOST != ''
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ env.REG_RU_SSH_HOST }}
+          username: ${{ env.REG_RU_SSH_USER }}
+          key: ${{ env.REG_RU_SSH_KEY }}
+          port: ${{ env.REG_RU_SSH_PORT }}
+          script: |
+            cd ${{ env.REG_RU_BACKEND_PATH }}
+            # Останавливаем старый контейнер
+            docker-compose down || true
+            # Удаляем старый образ
+            docker rmi electromontage-backend:latest || true
+            # Загружаем новый образ
+            docker load < backend-image.tar.gz
+            # Запускаем
+            docker-compose up -d
+            # Чистим неиспользуемые образы
+            docker image prune -f
+
+      - name: Copy Docker image to VPS
+        if: env.REG_RU_SSH_HOST != ''
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ env.REG_RU_SSH_HOST }}
+          username: ${{ env.REG_RU_SSH_USER }}
+          key: ${{ env.REG_RU_SSH_KEY }}
+          port: ${{ env.REG_RU_SSH_PORT }}
+          source: "backend-image.tar.gz"
+          target: ${{ env.REG_RU_BACKEND_PATH }}
+
+  # ──────────────────────────────────────────────
+  # NOTIFICATION
+  # ──────────────────────────────────────────────
+  notify:
+    needs: [deploy-frontend, deploy-backend]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Send notification
+        if: env.REG_RU_HOST != '' || env.REG_RU_SSH_HOST != ''
+        run: |
+          echo "✅ Деплой завершён!"
+          echo "Frontend: https://${{ secrets.REG_RU_DOMAIN }}"
+          echo "Backend API: https://${{ secrets.REG_RU_DOMAIN }}/api"
+          # Можно добавить отправку в Telegram/Slack/Email

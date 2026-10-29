@@ -1,0 +1,466 @@
+{
+  "portfolio": [
+    {
+      "category": "Подключение к электросетям",
+      "title": "Вводно-распределительное устройство (ВРУ)",
+      "file": "portfolio/podklyuchenie/1-vvodno-raspredelitelnoe-ustroystvo-vru.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Подключение к электросетям",
+      "title": "Трубостойка с ВРУ",
+      "file": "portfolio/podklyuchenie/2-trubostoyka-s-vru.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Подключение к электросетям",
+      "title": "ВРУ на трубостойке",
+      "file": "portfolio/podklyuchenie/3-vru-na-trubostoyke.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Подключение к электросетям",
+      "title": "ВРУ на трубостойке",
+      "file": "portfolio/podklyuchenie/4-vru-na-trubostoyke.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Подключение к электросетям",
+      "title": "ВРУ на трубостойке",
+      "file": "portfolio/podklyuchenie/5-vru-na-trubostoyke.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Подключение к электросетям",
+      "title": "ВРУ на трубостойке",
+      "file": "portfolio/podklyuchenie/6-vru-na-trubostoyke.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Подключение к электросетям",
+      "title": "ВРУ на трубостойке",
+      "file": "portfolio/podklyuchenie/7-vru-na-trubostoyke.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Подключение к электросетям",
+      "title": "ВРУ на трубостойке",
+      "file": "portfolio/podklyuchenie/8-vru-na-trubostoyke.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Подключение к электросетям",
+      "title": "ВРУ на трубостойке",
+      "file": "portfolio/podklyuchenie/9-vru-na-trubostoyke.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Подключение к электросетям",
+      "title": "ВРУ на трубостойке",
+      "file": "portfolio/podklyuchenie/10-vru-na-trubostoyke.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Подключение к электросетям",
+      "title": "ВРУ на трубостойке",
+      "file": "portfolio/podklyuchenie/11-vru-na-trubostoyke.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Подключение к электросетям",
+      "title": "ВРУ на трубостойке",
+      "file": "portfolio/podklyuchenie/12-vru-na-trubostoyke.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Подключение к электросетям",
+      "title": "Трубостойка с ВРУ",
+      "file": "portfolio/podklyuchenie/13-trubostoyka-s-vru.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Распределительный щит в частном доме",
+      "file": "portfolio/provodka/1-raspredelitelnyy-schit-v-chastnom-dome.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Распределительный щит в частном доме",
+      "file": "portfolio/provodka/2-raspredelitelnyy-schit-v-chastnom-dome.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/3-otkrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/4-otkrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/5-otkrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/6-otkrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/7-otkrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/8-otkrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/9-otkrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/10-otkrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/11-otkrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/12-otkrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/13-otkrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/14-otkrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/15-otkrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/16-otkrytaya-elektroprovodka.jpg",
+      "width": 574,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/17-otkrytaya-elektroprovodka.jpg",
+      "width": 574,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/18-otkrytaya-elektroprovodka.jpg",
+      "width": 574,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/19-otkrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/20-otkrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/21-otkrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/22-otkrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/23-otkrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/24-otkrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/25-otkrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Открытая электропроводка",
+      "file": "portfolio/provodka/26-otkrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Распределительный щит",
+      "file": "portfolio/provodka/27-raspredelitelnyy-schit.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Распределительный щит в частном доме",
+      "file": "portfolio/provodka/28-raspredelitelnyy-schit-v-chastnom-dome.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Распределительный щит в частном доме",
+      "file": "portfolio/provodka/29-raspredelitelnyy-schit-v-chastnom-dome.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Распределительный щит в частном доме",
+      "file": "portfolio/provodka/30-raspredelitelnyy-schit-v-chastnom-dome.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Распределительный щит в частном доме",
+      "file": "portfolio/provodka/31-raspredelitelnyy-schit-v-chastnom-dome.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Распределительный щит в частном доме",
+      "file": "portfolio/provodka/32-raspredelitelnyy-schit-v-chastnom-dome.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Скрытая электропроводка",
+      "file": "portfolio/provodka/33-skrytaya-elektroprovodka.jpg",
+      "width": 720,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Скрытая электропроводка",
+      "file": "portfolio/provodka/34-skrytaya-elektroprovodka.jpg",
+      "width": 720,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Скрытая электропроводка",
+      "file": "portfolio/provodka/35-skrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Распределительный щит в частном доме",
+      "file": "portfolio/provodka/36-raspredelitelnyy-schit-v-chastnom-dome.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Скрытая электропроводка",
+      "file": "portfolio/provodka/37-skrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Скрытая электропроводка",
+      "file": "portfolio/provodka/38-skrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Скрытая электропроводка",
+      "file": "portfolio/provodka/39-skrytaya-elektroprovodka.jpg",
+      "width": 1280,
+      "height": 960
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Скрытая электропроводка",
+      "file": "portfolio/provodka/40-skrytaya-elektroprovodka.jpg",
+      "width": 720,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Скрытая электропроводка",
+      "file": "portfolio/provodka/41-skrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Скрытая электропроводка",
+      "file": "portfolio/provodka/42-skrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Скрытая электропроводка",
+      "file": "portfolio/provodka/43-skrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Скрытая электропроводка",
+      "file": "portfolio/provodka/44-skrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Скрытая электропроводка",
+      "file": "portfolio/provodka/45-skrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Электропроводка",
+      "title": "Скрытая электропроводка",
+      "file": "portfolio/provodka/46-skrytaya-elektroprovodka.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Уличное освещение",
+      "title": "Уличный фонарь",
+      "file": "portfolio/osveshchenie/1-ulichnyy-fonar.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Уличное освещение",
+      "title": "Уличный фонарь",
+      "file": "portfolio/osveshchenie/2-ulichnyy-fonar.jpg",
+      "width": 622,
+      "height": 1280
+    },
+    {
+      "category": "Уличное освещение",
+      "title": "Уличный фонарь",
+      "file": "portfolio/osveshchenie/3-ulichnyy-fonar.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Уличное освещение",
+      "title": "Уличный фонарь",
+      "file": "portfolio/osveshchenie/4-ulichnyy-fonar.jpg",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "category": "Уличное освещение",
+      "title": "Уличный фонарь",
+      "file": "portfolio/osveshchenie/5-ulichnyy-fonar.jpg",
+      "width": 961,
+      "height": 1280
+    },
+    {
+      "category": "Заземление",
+      "title": "Контур заземления",
+      "file": "portfolio/zazemlenie/1-kontur-zazemleniya.jpg",
+      "width": 574,
+      "height": 1280
+    }
+  ],
+  "about": [
+    {
+      "file": "about/team-1.jpg",
+      "width": 800,
+      "height": 1280
+    }
+  ]
+}

@@ -1,47 +1,308 @@
-# CLAUDE.md
+# CLAUDE.md — ElectroMontage Project Documentation
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance for working with the ElectroMontage project (React SPA + NestJS API).
 
-## Build & Dev Commands
+---
 
-```bash
-npm run dev       # Start Vite dev server
-npm run build     # Production build (tsc -b && vite build)
-npm run preview   # Preview production build locally
+## 📁 Project Structure
+
+```
+electro-montage/
+├── frontend/                 # React 18 + Vite + TypeScript + Tailwind
+│   ├── src/                  # React components, pages, hooks, context
+│   ├── public/               # Static assets
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tailwind.config.js
+│   ├── tsconfig.json
+│   ├── Dockerfile            # Multi-stage: build → nginx
+│   ├── nginx.conf            # SPA fallback + API proxy
+│   └── .env.example
+│
+├── backend/                  # NestJS 10 + Prisma + PostgreSQL
+│   ├── src/                  # Modules: auth, categories, photos, upload, public
+│   ├── prisma/
+│   │   └── schema.prisma     # User, Category, Photo, RefreshToken
+│   ├── package.json
+│   ├── Dockerfile            # Multi-stage: deps → build → runner
+│   ├── docker-compose.yml    # Local dev (postgres + backend)
+│   ├── docker-compose.prod.yml # Production VPS
+│   ├── .env.example
+│   └── .env.production.example
+│
+├── .github/workflows/
+│   └── deploy.yml            # Auto-deploy to reg.ru on push to main
+│
+├── docker-compose.yml        # Local full stack (frontend + backend + postgres)
+├── package.json              # Root workspace (npm workspaces)
+└── CLAUDE.md
 ```
 
-No test runner or linter is configured.
+---
 
-## Architecture
+## 🚀 Local Development
 
-**ElectroMontage** — a React SPA for an electrical services business (Russian language). Built with Vite + TypeScript (strict mode) + Tailwind CSS.
+### Quick Start (All Services)
+```bash
+# From root - starts frontend:5173, backend:3001, postgres:5432
+docker-compose up -d
+```
 
-### Stack
+### Frontend Only
+```bash
+cd frontend
+npm install          # First time only
+npm run dev          # http://localhost:5173
+npm run build        # Production build → dist/
+npm run preview      # Preview production build
+```
 
-- React 18 with React Router DOM 7 (two routes: `/` home, `/services/:id` detail)
-- Framer Motion for animations and page transitions (AnimatePresence)
-- Flubber for SVG path morphing (Preloader bulb explosion)
-- Canvas-based particle systems (Hero electric particles)
-- React Helmet Async for per-page SEO meta tags and JSON-LD schemas
-- Swiper for carousels
+### Backend Only
+```bash
+cd backend
+npm install          # First time only
+npm run start:dev    # http://localhost:3001 (hot reload)
+npm run build        # Compile to dist/
+npm run start:prod   # Production mode (needs dist/)
+npm run prisma:studio # DB GUI
+npm run prisma:migrate # Run migrations
+npm run prisma:seed   # Seed admin user
+```
 
-### Key Patterns
+### Useful Commands
+```bash
+# Frontend
+npm run lint         # (if configured)
+npm run format       # (if configured)
 
-- **Theming**: Dark/light via CSS custom properties + React Context (`src/context/ThemeContext.tsx`). Persisted to localStorage. Accent color: `#f59e0b`. Theme transitions use 600ms cubic-bezier easing applied globally.
-- **Service data**: Centralized in `src/data/services.ts` — array of 6 services with icons, descriptions, and pricing. Service pages are dynamically routed by ID.
-- **Animations**: Framer Motion `useInView` for scroll-triggered animations. Custom Canvas renderers in Hero and Preloader components. SVG morphing via flubber in Preloader.
-- **SEO**: Structured data schemas (LocalBusiness, FAQPage, Service, BreadcrumbList) spread across `index.html`, `App.tsx`, and `ServicePage.tsx`.
-- **Navigation**: Header handles both hash-anchor scrolling (home sections) and route navigation, detecting current route to choose behavior.
+# Backend
+npm run lint         # ESLint with fix
+npm run test         # Jest
+npm run test:watch   # Jest watch mode
+npm run test:cov     # Coverage report
+npm run prisma:generate # Regenerate Prisma Client
+```
 
-### Source Layout
+---
 
-- `src/main.tsx` — Entry point (BrowserRouter + ThemeProvider)
-- `src/App.tsx` — Route definitions, page transitions, FAQPage schema
-- `src/components/` — All UI components (Header, Hero, Services, Portfolio, etc.)
-- `src/context/ThemeContext.tsx` — Theme provider and `useTheme` hook
-- `src/data/services.ts` — Service definitions (interface + data array)
-- `src/pages/ServicePage.tsx` — Dynamic service detail page with SEO schemas
-- `src/index.css` — CSS variables for both themes, Tailwind directives, global utilities
+## 🐳 Docker Commands
+
+### Root (Full Stack)
+```bash
+docker-compose up -d           # Start all
+docker-compose down            # Stop all
+docker-compose logs -f         # Logs
+docker-compose build           # Rebuild images
+```
+
+### Frontend
+```bash
+cd frontend
+npm run docker:up      # Build + start nginx
+npm run docker:down    # Stop
+npm run docker:logs    # Logs
+npm run docker:build   # Rebuild
+npm run docker:prune   # Clean volumes
+```
+
+### Backend
+```bash
+cd backend
+npm run docker:up      # Start postgres + backend
+npm run docker:down    # Stop
+npm run docker:logs    # Logs
+npm run docker:build   # Rebuild
+npm run docker:prune   # Clean volumes
+```
+
+---
+
+## 🔐 Auto-Deploy to reg.ru (GitHub Actions)
+
+### Workflow: `.github/workflows/deploy.yml`
+Triggers on push to `main`/`master`:
+1. **Frontend** → Build → FTP/FTPS deploy to shared hosting
+2. **Backend** → Build Docker image → SSH to VPS → docker-compose up
+3. **Notification** → Logs status
+
+### Required GitHub Secrets (Settings → Secrets → Actions)
+
+| Secret | Description | Example |
+|--------|-------------|---------|
+| `REG_RU_HOST` | FTP host shared hosting | `ftp.electromontage.ru` |
+| `REG_RU_USER` | FTP login | `u1234567` |
+| `REG_RU_PASSWORD` | FTP password | `••••••••` |
+| `REG_RU_FRONTEND_PATH` | Web root path | `/public_html` or `/www` |
+| `REG_RU_SSH_HOST` | VPS IP/host | `123.45.67.89` |
+| `REG_RU_SSH_USER` | SSH user | `root` or `deploy` |
+| `REG_RU_SSH_KEY` | **Private SSH key** (no passphrase) | `-----BEGIN OPENSSH PRIVATE KEY-----...` |
+| `REG_RU_SSH_PORT` | SSH port (optional) | `22` |
+| `REG_RU_BACKEND_PATH` | VPS path for backend | `/opt/electromontage` |
+| `REG_RU_DOMAIN` | Your domain | `electromontage.ru` |
+
+> **SSH Key**: Generate `ssh-keygen -t ed25519 -f deploy_key` → public to VPS `~/.ssh/authorized_keys`, private → GitHub secret.
+
+---
+
+## 🏭 Production Deployment (VPS reg.ru)
+
+### One-time VPS Setup
+```bash
+# 1. Install Docker + Compose
+curl -fsSL https://get.docker.com | sh
+apt-get install docker-compose-plugin
+
+# 2. Clone repo
+git clone https://github.com/YOUR/REPO.git /opt/electromontage
+cd /opt/electromontage
+
+# 3. Configure backend env
+cp backend/.env.production.example backend/.env
+nano backend/.env  # Fill all secrets!
+
+# 4. First launch
+docker compose -f backend/docker-compose.prod.yml up -d
+```
+
+### Backend Production Compose (`backend/docker-compose.prod.yml`)
+- PostgreSQL 15 + persistent volume
+- Backend (NestJS) on port 3001
+- Volumes for DB + uploads
+- Healthchecks + restart policies
+- Optional: nginx for SSL/termination
+
+### Frontend Production
+- Build: `npm run build` → `dist/`
+- Deploy via FTP to `/public_html` (or `/www`)
+- Nginx config: SPA fallback + `/api/*` proxy to backend:3001
+- SSL via Let's Encrypt (certbot) or reg.ru panel
+
+### Environment Variables (Production)
+Copy `backend/.env.production.example` → `.env` and fill:
+```bash
+POSTGRES_PASSWORD=secure_password
+JWT_ACCESS_SECRET=32+_char_base64
+JWT_REFRESH_SECRET=32+_char_base64
+JWT_ACCESS_TTL=15m
+JWT_REFRESH_TTL=7d
+PORT=3001
+NODE_ENV=production
+FRONTEND_URL=https://your-domain.ru
+```
+
+---
+
+## ✅ Local Testing Checklist
+
+### Before Commit
+```bash
+# Frontend
+cd frontend && npm run build    # No TS errors
+
+# Backend
+cd backend && npm run build     # No TS errors
+cd backend && npm run test      # All tests pass
+cd backend && npm run lint      # No lint errors
+```
+
+### Full Stack Local Test
+```bash
+# 1. Start everything
+docker-compose up -d
+
+# 2. Verify
+curl http://localhost:5173       # Frontend HTML
+curl http://localhost:3001/api/health  # Backend health (if endpoint exists)
+curl http://localhost:3001/api/categories  # Public API
+
+# 3. Open browser
+# http://localhost:5173 - full site
+# http://localhost:5173/admin/login - admin panel
+
+# 4. Admin login
+# Email: admin@electromontage.ru
+# Pass:  ElectroAdmin2024!
+```
+
+### Admin Panel Test
+1. Login → Categories page → Add category → Drag reorder
+2. Photos page → Upload → Drag reorder → Delete
+3. Verify frontend Portfolio loads from API
+
+---
+
+## 🛠️ Troubleshooting
+
+### Port Conflicts
+```bash
+# Frontend 5173 busy
+lsof -i :5173
+# Backend 3001 busy
+lsof -i :3001
+# Postgres 5432 busy
+lsof -i :5432
+```
+
+### Database Issues
+```bash
+cd backend
+npm run prisma:migrate:prod  # Apply pending migrations
+npm run prisma:generate      # Regenerate client
+npm run prisma:studio        # Visual DB access
+```
+
+### Docker Issues
+```bash
+docker-compose down -v       # Clean volumes
+docker system prune -af      # Clean everything
+docker-compose build --no-cache  # Fresh build
+```
+
+### Git / Deploy Issues
+```bash
+# Check workflow status
+gh run list --workflow=deploy.yml
+gh run view --log <run-id>
+```
+
+---
+
+## 📝 Key Files Reference
+
+| File | Purpose |
+|------|---------|
+| `frontend/vite.config.ts` | Vite config, aliases, proxy |
+| `frontend/tailwind.config.js` | Tailwind theme, dark mode |
+| `frontend/nginx.conf` | SPA fallback, API proxy, caching |
+| `backend/prisma/schema.prisma` | DB models, enums, relations |
+| `backend/src/main.ts` | App bootstrap, global pipes, CORS |
+| `backend/docker-compose.prod.yml` | Production VPS stack |
+| `.github/workflows/deploy.yml` | CI/CD pipeline |
+| `docker-compose.yml` | Local full stack |
+
+---
+
+## 🔑 Default Admin Credentials
+```
+Email:    admin@electromontage.ru
+Password: ElectroAdmin2024!
+```
+(Change after first login!)
+
+---
+
+## 📦 Deployment Summary
+
+| Environment | Frontend | Backend | Database |
+|-------------|----------|---------|----------|
+| Local Dev   | `npm run dev` (5173) | `npm run start:dev` (3001) | `docker-compose up postgres` |
+| Docker Local| `docker-compose up` (nginx:80) | `docker-compose up backend` (3001) | `docker-compose up postgres` |
+| Production  | FTP → `/public_html` | VPS Docker (3001) + nginx:80/443 | VPS Docker Postgres |
+
+---
+
+> **Note**: This project uses npm workspaces. Root `package.json` orchestrates `frontend` and `backend` workspaces. Run `npm install` from root once to set up all workspaces.
 
 # context-mode — MANDATORY routing rules
 
