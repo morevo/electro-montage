@@ -86,11 +86,20 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -p "${REG_RU_SSH_PORT:-22}" -H "$REG_RU_SSH_HOST" >> ~/.ssh/known_hosts
 
+      - name: Resolve static directory on VPS
+        id: static
+        if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
+        run: |
+          DEST=$(ssh -p "${REG_RU_SSH_PORT:-22}" "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}" \
+            "D=\"\$HOME/www/${REG_RU_DOMAIN}\"; if [ -d \"\$D\" ]; then readlink -f \"\$D\"; else echo '${REG_RU_FRONTEND_PATH}'; fi")
+          echo "dir=$DEST" >> "$GITHUB_OUTPUT"
+          echo "Статика → $DEST"
+
       - name: Ensure static directory exists
         if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
         run: |
           ssh -p "${REG_RU_SSH_PORT:-22}" "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}" \
-            "mkdir -p '$REG_RU_FRONTEND_PATH'"
+            "mkdir -p '${{ steps.static.outputs.dir }}'"
 
       - name: Upload dist to VPS (rsync)
         if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
@@ -98,18 +107,13 @@ jobs:
           rsync -az --delete --chmod=D755,F644 \
             -e "ssh -p ${REG_RU_SSH_PORT:-22}" \
             ./dist/ \
-            "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}:${REG_RU_FRONTEND_PATH}/"
-          echo "✅ Статика выложена в ${REG_RU_FRONTEND_PATH} на VPS"
+            "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}:${{ steps.static.outputs.dir }}/"
+          echo "✅ Статика выложена в ${{ steps.static.outputs.dir }}"
 
       - name: Verify deployed files
         if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
         run: |
-          CMD="echo '--- HOME ---'; readlink -f \"\$HOME\"; \
-               echo '--- home www ---'; ls -la \"\$HOME/www\" 2>/dev/null | head -8; \
-               echo '--- served index ---'; stat -c '%n %y' \"\$HOME/www/abcn77.ru/index.html\" 2>/dev/null; \
-               echo '--- served ref ---'; grep -oE 'assets/index-[A-Za-z0-9_-]+\.(js|css)' \"\$HOME/www/abcn77.ru/index.html\" 2>/dev/null; \
-               echo '--- deploy target ---'; stat -c '%n %y' '$REG_RU_FRONTEND_PATH/index.html' 2>/dev/null; \
-               echo '--- realpath ---'; readlink -f \"\$HOME/www/abcn77.ru\"; readlink -f '$REG_RU_FRONTEND_PATH'"
+          CMD="stat -c '%n | %y' '${{ steps.static.outputs.dir }}/index.html'; grep -oE 'assets/index-[A-Za-z0-9_-]+\.(js|css)' '${{ steps.static.outputs.dir }}/index.html'"
           ssh -p "${REG_RU_SSH_PORT:-22}" "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}" "$CMD"
 
       # ── Вариант B: FTPS на shared-хостинг (только если режим ftp) ──
