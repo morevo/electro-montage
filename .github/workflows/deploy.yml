@@ -24,6 +24,8 @@ env:
   # Как выкладывать статику: ssh (rsync на VPS, по умолчанию) или ftp (FTPS).
   # Не задан → ssh, если есть REG_RU_SSH_HOST, иначе ftp.
   REG_RU_FRONTEND_MODE: ${{ secrets.REG_RU_FRONTEND_MODE }}
+  # Строка подключения к MySQL — из неё создаётся backend/.env при первом деплое.
+  PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
   # ── Backend (SSH на VPS) ──
   REG_RU_SSH_HOST: ${{ secrets.REG_RU_SSH_HOST }}
   REG_RU_SSH_USER: ${{ secrets.REG_RU_SSH_USER }}
@@ -84,6 +86,12 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -p "${REG_RU_SSH_PORT:-22}" -H "$REG_RU_SSH_HOST" >> ~/.ssh/known_hosts
 
+      - name: Ensure static directory exists
+        if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
+        run: |
+          ssh -p "${REG_RU_SSH_PORT:-22}" "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}" \
+            "mkdir -p '$REG_RU_FRONTEND_PATH'"
+
       - name: Upload dist to VPS (rsync)
         if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
         run: |
@@ -142,9 +150,11 @@ jobs:
           script: |
             set -euo pipefail
 
-            # Секрет REG_RU_BACKEND_PATH задаёт путь явно. Если он не задан —
-            # берём путь из инструкции (AUTODEPLOY.md §3).
-            APP_PATH="${REG_RU_BACKEND_PATH:-$HOME/apps/electromontage}"
+            # ВАЖНО: скрипт выполняется на самом сервере, поэтому секреты GitHub
+            # сюда не попадают как переменные окружения — подставляем их на этапе
+            # запуска workflow (${{ env.* }}), а пустое значение добиваем $HOME.
+            APP_PATH="${{ env.REG_RU_BACKEND_PATH }}"
+            APP_PATH="${APP_PATH:-$HOME/apps/electromontage}"
 
             # Первый деплой сам делает клон: репозиторий публичный, ключ не нужен.
             if [ ! -d "$APP_PATH/.git" ]; then
@@ -169,6 +179,31 @@ jobs:
               mv "$HOME/.backend.env.backup" backend/.env
               echo "backend/.env восстановлен"
             fi
+            # 1.5 Первый деплой сам создаёт backend/.env из секрета PROD_DATABASE_URL.
+            #       Дальше файл живёт на сервере и переживает каждый деплой.
+            if [ ! -f backend/.env ]; then
+              if [ -z "${{ env.PROD_DATABASE_URL }}" ]; then
+                echo "❌ backend/.env нет, и секрет PROD_DATABASE_URL не задан."
+                echo "   Добавьте секрет PROD_DATABASE_URL (mysql://user:pass@127.0.0.1:3306/db)"
+                echo "   или создайте backend/.env вручную по backend/.env.production.example"
+                exit 1
+              fi
+              cat > backend/.env <<ENVEOF
+DATABASE_URL="${{ env.PROD_DATABASE_URL }}"
+JWT_ACCESS_SECRET="$(openssl rand -base64 32)"
+JWT_REFRESH_SECRET="$(openssl rand -base64 32)"
+JWT_ACCESS_TTL=15m
+JWT_REFRESH_TTL=7d
+PORT=3001
+NODE_ENV=production
+FRONTEND_URL="https://${{ env.REG_RU_DOMAIN }}"
+UPLOAD_DIR=./uploads
+MAX_FILE_SIZE=10485760
+ENVEOF
+              chmod 600 backend/.env
+              echo "✅ backend/.env создан из PROD_DATABASE_URL"
+            fi
+
             if [ ! -f backend/.env ]; then
               echo "❌ backend/.env не найден — заполните его по backend/.env.production.example"
               exit 1
