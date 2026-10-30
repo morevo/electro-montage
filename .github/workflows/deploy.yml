@@ -227,9 +227,30 @@ jobs:
               exit 1
             fi
 
-            # 2. Node и npm на месте?
-            node -v
-            npm -v
+            # 2. Node на хостинге по умолчанию старый (v10) и не понимает lock-файл.
+            #    Свой Node ставим в домашнюю папку — без root и без Docker.
+            NODE_VERSION=20.18.1
+            case "$(uname -m)" in
+              x86_64|amd64) NODE_ARCH=x64 ;;
+              aarch64|arm64) NODE_ARCH=arm64 ;;
+              *) echo "❌ Неизвестная архитектура: $(uname -m)"; exit 1 ;;
+            esac
+            NODE_HOME="$HOME/runtime/node-v$NODE_VERSION-linux-$NODE_ARCH"
+            if [ ! -x "$NODE_HOME/bin/node" ]; then
+              mkdir -p "$HOME/runtime"
+              echo "→ ставлю Node $NODE_VERSION ($NODE_ARCH)"
+              TARBALL="$HOME/runtime/node.tar.xz"
+              if curl -fsSL "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-$NODE_ARCH.tar.xz" -o "$TARBALL" && tar -xJf "$TARBALL" -C "$HOME/runtime"; then
+                rm -f "$TARBALL"
+              else
+                echo "→ .xz не подошёл, качаю .tar.gz"
+                curl -fsSL "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-$NODE_ARCH.tar.gz" -o "$HOME/runtime/node.tar.gz"
+                tar -xzf "$HOME/runtime/node.tar.gz" -C "$HOME/runtime"
+                rm -f "$HOME/runtime/node.tar.gz"
+              fi
+            fi
+            export PATH="$NODE_HOME/bin:$PATH"
+            echo "Node: $(node -v), npm: $(npm -v)"
 
             # 3. Зависимости и Prisma Client (MySQL)
             cd backend
