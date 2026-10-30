@@ -188,18 +188,18 @@ jobs:
                 echo "   или создайте backend/.env вручную по backend/.env.production.example"
                 exit 1
               fi
-              cat > backend/.env <<ENVEOF
-DATABASE_URL="${{ env.PROD_DATABASE_URL }}"
-JWT_ACCESS_SECRET="$(openssl rand -base64 32)"
-JWT_REFRESH_SECRET="$(openssl rand -base64 32)"
-JWT_ACCESS_TTL=15m
-JWT_REFRESH_TTL=7d
-PORT=3001
-NODE_ENV=production
-FRONTEND_URL="https://${{ env.REG_RU_DOMAIN }}"
-UPLOAD_DIR=./uploads
-MAX_FILE_SIZE=10485760
-ENVEOF
+              {
+                echo "DATABASE_URL=\"${{ env.PROD_DATABASE_URL }}\""
+                echo "JWT_ACCESS_SECRET=\"$(openssl rand -base64 32)\""
+                echo "JWT_REFRESH_SECRET=\"$(openssl rand -base64 32)\""
+                echo "JWT_ACCESS_TTL=15m"
+                echo "JWT_REFRESH_TTL=7d"
+                echo "PORT=3001"
+                echo "NODE_ENV=production"
+                echo "FRONTEND_URL=\"https://${{ env.REG_RU_DOMAIN }}\""
+                echo "UPLOAD_DIR=./uploads"
+                echo "MAX_FILE_SIZE=10485760"
+              } > backend/.env
               chmod 600 backend/.env
               echo "✅ backend/.env создан из PROD_DATABASE_URL"
             fi
