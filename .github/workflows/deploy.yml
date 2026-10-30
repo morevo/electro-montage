@@ -1,10 +1,10 @@
 name: Deploy to reg.ru
 
 # Автодеплой без Docker:
-#   • frontend — сборка и выгрузка dist на VPS по SSH (rsync) либо по FTPS;
-#   • backend  — git pull на VPS, npm ci, prisma db push, nest build и
-#                перезапуск Node-процесса через scripts/server-start.sh
-#                (PID-файл, без docker и без sudo).
+#   • frontend — сборка в GitHub Actions, на сервер уезжает только dist (rsync);
+#   • backend  — сборка тоже в GitHub Actions: на сервер попадают только
+#                собранный dist, package.json, prisma-схема и скрипты запуска.
+#                Исходников и git-клона на сервере нет.
 #
 # MySQL 8 на сервере уже установлен нативно (Docker не нужен и не ставится),
 # база и пользователь созданы один раз вручную — см. STEP_BY_STEP_GUIDE.md §4
@@ -39,7 +39,7 @@ env:
 
 jobs:
   # ──────────────────────────────────────────────
-  # FRONTEND: сборка и деплой по FTP
+  # FRONTEND: сборка и деплой статики
   # ──────────────────────────────────────────────
   deploy-frontend:
     runs-on: ubuntu-latest
@@ -94,7 +94,7 @@ jobs:
         if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
         run: |
           DEST=$(ssh -p "${REG_RU_SSH_PORT:-22}" "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}" \
-            "D=\"\$HOME/www/${REG_RU_DOMAIN}\"; if [ -d \"\$D\" ]; then readlink -f \"\$D\"; else echo '${REG_RU_FRONTEND_PATH}'; fi")
+            "D=\"\$HOME/www/${REG_RU_DOMAIN}\"; P='${REG_RU_FRONTEND_PATH}'; case \"\$P\" in /*) : ;; *) P=\"\" ;; esac; if [ -d \"\$D\" ]; then readlink -f \"\$D\"; else echo \"\${P:-\$D}\"; fi")
           echo "dir=$DEST" >> "$GITHUB_OUTPUT"
           echo "Статика → $DEST"
 
@@ -116,7 +116,7 @@ jobs:
       - name: Verify deployed files
         if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
         run: |
-          CMD="stat -c '%n | %y' '${{ steps.static.outputs.dir }}/index.html'; grep -oE 'assets/index-[A-Za-z0-9_-]+\.(js|css)' '${{ steps.static.outputs.dir }}/index.html'"
+          CMD="stat -c '%n | %y' '${{ steps.static.outputs.dir }}/index.html'; grep -oE 'assets/index-[A-Za-z0-9_-]+\\.(js|css)' '${{ steps.static.outputs.dir }}/index.html'"
           ssh -p "${REG_RU_SSH_PORT:-22}" "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}" "$CMD"
 
       # ── Вариант B: FTPS на shared-хостинг (только если режим ftp) ──
@@ -139,7 +139,7 @@ jobs:
             **/*.map
 
   # ──────────────────────────────────────────────
-  # BACKEND: обновление кода и перезапуск Node на VPS
+  # BACKEND: сборка в CI, на сервер — только билд
   # ──────────────────────────────────────────────
   deploy-backend:
     runs-on: ubuntu-latest
@@ -156,7 +156,59 @@ jobs:
             exit 1
           fi
 
-      - name: Deploy backend on VPS via SSH
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install and build backend
+        working-directory: ./backend
+        run: |
+          npm ci --include=dev --no-audit --no-fund
+          npx prisma generate
+          npm run build
+          test -f dist/main.js || { echo "❌ dist/main.js не собрался"; exit 1; }
+
+      - name: Setup SSH agent
+        if: env.REG_RU_SSH_HOST != ''
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ env.REG_RU_SSH_KEY }}
+
+      - name: Trust host key
+        if: env.REG_RU_SSH_HOST != ''
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${REG_RU_SSH_PORT:-22}" -H "$REG_RU_SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Resolve backend directory on server
+        id: backend
+        if: env.REG_RU_SSH_HOST != ''
+        run: |
+          APP="$REG_RU_BACKEND_PATH"
+          # Секрет может содержать windows-путь — такой игнорируем.
+          case "$APP" in /*) : ;; *) APP="" ;; esac
+          REMOTE=$(ssh -p "${REG_RU_SSH_PORT:-22}" "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}" \
+            "A='$APP'; [ -n \"\$A\" ] || A=\"\$HOME/apps/electromontage\"; mkdir -p \"\$A\"; echo \"\$A\"")
+          echo "dir=$REMOTE" >> "$GITHUB_OUTPUT"
+          echo "Бэкенд → $REMOTE"
+
+      - name: Upload build to server (rsync)
+        if: env.REG_RU_SSH_HOST != ''
+        run: |
+          rsync -az --delete --chmod=D755,F644 \
+            -e "ssh -p ${REG_RU_SSH_PORT:-22}" \
+            --exclude node_modules --exclude .env --exclude logs --exclude uploads --exclude .run \
+            ./backend/dist ./backend/prisma ./backend/scripts ./backend/package.json ./backend/package-lock.json \
+            "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}:${{ steps.backend.outputs.dir }}/"
+          echo "✅ Билд выложен в ${{ steps.backend.outputs.dir }}"
+
+      - name: Prepare and restart API on server
         if: env.REG_RU_SSH_HOST != ''
         uses: appleboy/ssh-action@v1
         with:
@@ -167,50 +219,26 @@ jobs:
           command_timeout: 20m
           script: |
             set -euo pipefail
-
-            # ВАЖНО: скрипт выполняется на самом сервере, поэтому секреты GitHub
-            # сюда не попадают как переменные окружения — подставляем их на этапе
-            # запуска workflow (${{ env.* }}), а пустое значение добиваем $HOME.
-            APP_PATH="${{ env.REG_RU_BACKEND_PATH }}"
-            # В секрете мог остаться windows-путь (C:/Users/...): на Linux он
-            # трактуется как относительный и создаёт мусорные каталоги. Поэтому
-            # принимаем только абсолютный путь, иначе $HOME/apps/electromontage.
-            case "$APP_PATH" in
-              /*) : ;;
-              *) APP_PATH="" ;;
-            esac
-            APP_PATH="${APP_PATH:-$HOME/apps/electromontage}"
-
-            # Первый деплой сам делает клон: репозиторий публичный, ключ не нужен.
-            if [ ! -d "$APP_PATH/.git" ]; then
-              echo "→ git-клона нет, клонирую в $APP_PATH"
-              mkdir -p "$(dirname "$APP_PATH")"
-              git clone https://github.com/morevo/electro-montage.git "$APP_PATH"
-            fi
-
+            APP_PATH="${{ steps.backend.outputs.dir }}"
             cd "$APP_PATH"
 
-            # 0. backend/.env не в репозитории — сохраняем перед reset --hard
-            if [ -f backend/.env ]; then
-              cp backend/.env "$HOME/.backend.env.backup"
-              echo "backend/.env сохранён"
+            # 0. Убираем всё, что осталось от прежнего деплоя «клоном»:
+            #    исходники, .git, frontend, доки. На сервере живут только билды.
+            if printf '%s' "$APP_PATH" | grep -q '/apps/'; then
+              find . -mindepth 1 -maxdepth 1 \
+                -not -name dist -not -name node_modules -not -name prisma -not -name scripts \
+                -not -name logs -not -name uploads -not -name .run -not -name .env \
+                -not -name package.json -not -name package-lock.json \
+                -exec rm -rf {} + 2>/dev/null || true
             fi
 
-            # 1. Свежий код
-            git fetch --all --prune
-            git reset --hard "origin/main" 2>/dev/null || git reset --hard "origin/master"
+            mkdir -p uploads/portfolio logs .run
 
-            if [ ! -f backend/.env ] && [ -f "$HOME/.backend.env.backup" ]; then
-              mv "$HOME/.backend.env.backup" backend/.env
-              echo "backend/.env восстановлен"
-            fi
-            # 1.5 Первый деплой сам создаёт backend/.env из секрета PROD_DATABASE_URL.
-            #       Дальше файл живёт на сервере и переживает каждый деплой.
-            if [ ! -f backend/.env ]; then
+            # 1. backend/.env создаётся один раз из PROD_DATABASE_URL и живёт на сервере
+            if [ ! -f .env ]; then
               if [ -z "${{ env.PROD_DATABASE_URL }}" ]; then
-                echo "❌ backend/.env нет, и секрет PROD_DATABASE_URL не задан."
+                echo "❌ .env нет, и секрет PROD_DATABASE_URL не задан."
                 echo "   Добавьте секрет PROD_DATABASE_URL (mysql://user:pass@127.0.0.1:3306/db)"
-                echo "   или создайте backend/.env вручную по backend/.env.production.example"
                 exit 1
               fi
               {
@@ -224,18 +252,12 @@ jobs:
                 echo "FRONTEND_URL=\"https://${{ env.REG_RU_DOMAIN }}\""
                 echo "UPLOAD_DIR=./uploads"
                 echo "MAX_FILE_SIZE=10485760"
-              } > backend/.env
-              chmod 600 backend/.env
-              echo "✅ backend/.env создан из PROD_DATABASE_URL"
+              } > .env
+              chmod 600 .env
+              echo "✅ .env создан из PROD_DATABASE_URL"
             fi
 
-            if [ ! -f backend/.env ]; then
-              echo "❌ backend/.env не найден — заполните его по backend/.env.production.example"
-              exit 1
-            fi
-
-            # 2. Node на хостинге по умолчанию старый (v10) и не понимает lock-файл.
-            #    Свой Node ставим в домашнюю папку — без root и без Docker.
+            # 2. Node на хостинге по умолчанию старый (v10) — ставим свой в $HOME/runtime
             NODE_VERSION=20.18.1
             case "$(uname -m)" in
               x86_64|amd64) NODE_ARCH=x64 ;;
@@ -245,12 +267,10 @@ jobs:
             NODE_HOME="$HOME/runtime/node-v$NODE_VERSION-linux-$NODE_ARCH"
             if [ ! -x "$NODE_HOME/bin/node" ]; then
               mkdir -p "$HOME/runtime"
-              echo "→ ставлю Node $NODE_VERSION ($NODE_ARCH)"
               TARBALL="$HOME/runtime/node.tar.xz"
               if curl -fsSL "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-$NODE_ARCH.tar.xz" -o "$TARBALL" && tar -xJf "$TARBALL" -C "$HOME/runtime"; then
                 rm -f "$TARBALL"
               else
-                echo "→ .xz не подошёл, качаю .tar.gz"
                 curl -fsSL "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-$NODE_ARCH.tar.gz" -o "$HOME/runtime/node.tar.gz"
                 tar -xzf "$HOME/runtime/node.tar.gz" -C "$HOME/runtime"
                 rm -f "$HOME/runtime/node.tar.gz"
@@ -259,55 +279,27 @@ jobs:
             export PATH="$NODE_HOME/bin:$PATH"
             echo "Node: $(node -v), npm: $(npm -v)"
 
-            # 3. Зависимости и Prisma Client (MySQL)
-            cd backend
-            mkdir -p uploads/portfolio
-            # На хостинге в окружении бывает NODE_ENV=production, и тогда npm
-            # ставит только production-зависимости — prisma и nest cli (dev) не встают.
+            # 3. Зависимости (нужен prisma CLI для db push и generate)
             npm ci --include=dev --no-audit --no-fund
-            PRISMA=./node_modules/.bin/prisma
-            if [ ! -x "$PRISMA" ]; then
-              echo "❌ prisma CLI не установился — dev-зависимости не встали"
-              ls node_modules/.bin 2>/dev/null | head -10 || true
-              exit 1
-            fi
-            "$PRISMA" generate
+            ./node_modules/.bin/prisma generate
 
-            # 4. Схема БД. Миграций в проекте нет — используем db push.
-            #    DATABASE_URL берётся из backend/.env (prisma читает его сам).
-            "$PRISMA" db push --skip-generate
+            # 4. Схема БД
+            ./node_modules/.bin/prisma db push --skip-generate
 
-            # 5. Сборка. На хостинге npm нестабильно ставит dev-зависимости даже
-            #    с --include=dev, поэтому доставляем их перед сборкой.
-            if [ ! -x ./node_modules/.bin/nest ]; then
-              echo "⚠️ nest cli не установился — доставляю dev-зависимости"
-              npm install --include=dev --no-save --no-audit --no-fund || true
-            fi
-            if [ -x ./node_modules/.bin/nest ]; then
-              ./node_modules/.bin/nest build
-            elif [ -x ./node_modules/.bin/tsc ]; then
-              TSCFG=tsconfig.build.json
-              [ -f "$TSCFG" ] || TSCFG=tsconfig.json
-              echo "→ nest cli нет, собираю через tsc ($TSCFG)"
-              ./node_modules/.bin/tsc -p "$TSCFG"
-            else
-              echo "❌ нет ни nest, ни tsc — сборка невозможна"
-              exit 1
-            fi
-
-            # 5.1 Админ: создаётся/обновляется из секретов, если они заданы
+            # 5. Админ: значения из секретов всегда перекрывают .env
             if [ -n "${{ env.SEED_ADMIN_LOGIN }}" ] && [ -n "${{ env.SEED_ADMIN_PASSWORD }}" ]; then
-              # Значения из секретов всегда перекрывают то, что лежит в .env:
-              # иначе старый/короткий пароль остаётся и админ не создаётся.
               sed -i '/^SEED_ADMIN_LOGIN=/d; /^SEED_ADMIN_PASSWORD=/d' .env
               echo "SEED_ADMIN_LOGIN=\"${{ env.SEED_ADMIN_LOGIN }}\"" >> .env
               echo "SEED_ADMIN_PASSWORD=\"${{ env.SEED_ADMIN_PASSWORD }}\"" >> .env
               node scripts/create-admin.js && echo "✅ админ готов" || echo "⚠️ админ не создан"
             fi
 
-            # 6. Перезапуск без Docker и без root: PID-файл + health-check внутри
+            # 6. Перезапуск: PID-файл, лог, health-check
             chmod +x scripts/server-start.sh scripts/server-stop.sh
             bash scripts/server-start.sh
+
+            echo "=== содержимое каталога бэкенда ==="
+            ls -la "$APP_PATH"
 
             echo "✅ Бэкенд обновлён"
 
