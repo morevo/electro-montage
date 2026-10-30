@@ -1,0 +1,42 @@
+name: Diagnose API routing (one-off)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect site config and API
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.REG_RU_SSH_HOST }}
+          username: ${{ secrets.REG_RU_SSH_USER }}
+          key: ${{ secrets.REG_RU_SSH_KEY }}
+          port: ${{ secrets.REG_RU_SSH_PORT || '22' }}
+          command_timeout: 5m
+          script: |
+            set -uo pipefail
+            SITE="$HOME/www/abcn77.ru"
+
+            echo "=== .htaccess ==="
+            if [ -f "$SITE/.htaccess" ]; then cat "$SITE/.htaccess"; else echo "нет .htaccess"; fi
+
+            echo "=== backend напрямую (:3001) ==="
+            curl -s -o /dev/null -w "  /api/health -> %{http_code}\n" http://127.0.0.1:3001/api/health || true
+            curl -s -o /dev/null -w "  /api/public/categories -> %{http_code}\n" http://127.0.0.1:3001/api/public/categories || true
+            echo "  тело /api/public/categories:"
+            curl -s http://127.0.0.1:3001/api/public/categories | head -c 200 || true
+            echo
+
+            echo "=== через домен ==="
+            curl -s -o /dev/null -w "  https /api/health -> %{http_code}\n" https://abcn77.ru/api/health || true
+            curl -s -o /dev/null -w "  https /api/public/categories -> %{http_code}\n" https://abcn77.ru/api/public/categories || true
+            echo "  заголовки ответа:"
+            curl -sI https://abcn77.ru/api/health | head -8 || true
+
+            echo "=== чем отдаётся сайт ==="
+            curl -sI https://abcn77.ru/ | head -6 || true
+
+            echo "=== процессы node ==="
+            ps -u "$(id -u)" -o pid,args | grep -E "dist/main" | grep -v grep || echo "нет"
