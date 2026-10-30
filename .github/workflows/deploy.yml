@@ -104,12 +104,13 @@ jobs:
       - name: Verify deployed files
         if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
         run: |
-          ssh -p "${REG_RU_SSH_PORT:-22}" "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}" "
-            echo \"--- HOME ---\"; echo $HOME
-            echo \"--- target ---\"; ls -la '${REG_RU_FRONTEND_PATH}' | head -20
-            echo \"--- index ref ---\"; grep -oE 'assets/index-[A-Za-z0-9_-]+.(js|css)' '${REG_RU_FRONTEND_PATH}/index.html'
-            echo \"--- nginx root ---\"; grep -rhoE 'root [^;]+' /etc/nginx/sites-enabled/ 2>/dev/null | head -3
-          "
+          CMD="echo '--- HOME ---'; readlink -f \"\$HOME\"; \
+               echo '--- home www ---'; ls -la \"\$HOME/www\" 2>/dev/null | head -8; \
+               echo '--- served index ---'; stat -c '%n %y' \"\$HOME/www/abcn77.ru/index.html\" 2>/dev/null; \
+               echo '--- served ref ---'; grep -oE 'assets/index-[A-Za-z0-9_-]+\.(js|css)' \"\$HOME/www/abcn77.ru/index.html\" 2>/dev/null; \
+               echo '--- deploy target ---'; stat -c '%n %y' '$REG_RU_FRONTEND_PATH/index.html' 2>/dev/null; \
+               echo '--- realpath ---'; readlink -f \"\$HOME/www/abcn77.ru\"; readlink -f '$REG_RU_FRONTEND_PATH'"
+          ssh -p "${REG_RU_SSH_PORT:-22}" "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}" "$CMD"
 
       # ── Вариант B: FTPS на shared-хостинг (только если режим ftp) ──
       - name: Deploy to reg.ru via FTP
