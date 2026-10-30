@@ -270,8 +270,23 @@ jobs:
             #    DATABASE_URL берётся из backend/.env (prisma читает его сам).
             "$PRISMA" db push --skip-generate
 
-            # 5. Сборка
-            npm run build
+            # 5. Сборка. На хостинге npm нестабильно ставит dev-зависимости даже
+            #    с --include=dev, поэтому доставляем их перед сборкой.
+            if [ ! -x ./node_modules/.bin/nest ]; then
+              echo "⚠️ nest cli не установился — доставляю dev-зависимости"
+              npm install --include=dev --no-save --no-audit --no-fund || true
+            fi
+            if [ -x ./node_modules/.bin/nest ]; then
+              ./node_modules/.bin/nest build
+            elif [ -x ./node_modules/.bin/tsc ]; then
+              TSCFG=tsconfig.build.json
+              [ -f "$TSCFG" ] || TSCFG=tsconfig.json
+              echo "→ nest cli нет, собираю через tsc ($TSCFG)"
+              ./node_modules/.bin/tsc -p "$TSCFG"
+            else
+              echo "❌ нет ни nest, ни tsc — сборка невозможна"
+              exit 1
+            fi
 
             # 5.1 Админ: создаётся/обновляется из секретов, если они заданы
             if [ -n "${{ env.SEED_ADMIN_LOGIN }}" ] && [ -n "${{ env.SEED_ADMIN_PASSWORD }}" ]; then
