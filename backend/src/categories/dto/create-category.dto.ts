@@ -8,14 +8,17 @@ export class CreateCategoryDto {
   @MaxLength(100)
   name: string;
 
-  @ApiProperty({ example: 'electrovodka' })
+  // Слаг больше не вводится в админке — сервер делает его сам из названия.
+  // Поле оставлено для API/скриптов, которым нужен свой адрес категории.
+  @ApiPropertyOptional({ example: 'electrovodka' })
+  @IsOptional()
   @IsString()
   @MinLength(2)
   @MaxLength(100)
   @Matches(/^[a-z0-9-]+$/, {
     message: 'Слаг может содержать только строчные буквы, цифры и дефисы',
   })
-  slug: string;
+  slug?: string;
 
   @ApiPropertyOptional({ example: 'Работы по электропроводке' })
   @IsOptional()

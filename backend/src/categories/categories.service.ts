@@ -7,10 +7,25 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { ReorderCategoriesDto } from './dto/reorder-categories.dto';
+import { slugify } from '../common/utils/slugify';
 
 @Injectable()
 export class CategoriesService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /** Свободный слаг: base, base-2, base-3… */
+  private async uniqueSlug(base: string, exceptId?: string): Promise<string> {
+    const root = slugify(base);
+    for (let i = 1; i < 100; i += 1) {
+      const candidate = i === 1 ? root : `${root}-${i}`;
+      const taken = await this.prisma.category.findFirst({
+        where: { slug: candidate, ...(exceptId ? { NOT: { id: exceptId } } : {}) },
+        select: { id: true },
+      });
+      if (!taken) return candidate;
+    }
+    return `${root}-${Date.now()}`;
+  }
 
   async create(createCategoryDto: CreateCategoryDto) {
     const existingByName = await this.prisma.category.findUnique({
@@ -20,11 +35,18 @@ export class CategoriesService {
       throw new ConflictException('Категория с таким названием уже существует');
     }
 
-    const existingBySlug = await this.prisma.category.findUnique({
-      where: { slug: createCategoryDto.slug },
-    });
-    if (existingBySlug) {
-      throw new ConflictException('Категория с таким слагом уже существует');
+    // Слаг приходит из API или генерируется из названия — в админке поля нет.
+    const slug = createCategoryDto.slug
+      ? createCategoryDto.slug
+      : await this.uniqueSlug(createCategoryDto.name);
+
+    if (createCategoryDto.slug) {
+      const existingBySlug = await this.prisma.category.findUnique({
+        where: { slug },
+      });
+      if (existingBySlug) {
+        throw new ConflictException('Категория с таким слагом уже существует');
+      }
     }
 
     const maxOrder = await this.prisma.category.aggregate({
@@ -34,6 +56,7 @@ export class CategoriesService {
     return this.prisma.category.create({
       data: {
         ...createCategoryDto,
+        slug,
         sortOrder: (maxOrder._max.sortOrder ?? -1) + 1,
       },
     });

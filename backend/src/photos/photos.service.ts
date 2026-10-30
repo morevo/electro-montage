@@ -95,7 +95,10 @@ export class PhotosService {
   async delete(id: string) {
     const photo = await this.findOne(id);
 
-    const filePath = path.join(process.cwd(), 'uploads', photo.filename);
+    // Файлы лежат в uploads/portfolio (см. UploadService.getMulterConfig),
+    // иначе при удалении фото оставались «сироты» на диске.
+    const uploadDir = process.env.UPLOAD_DIR || './uploads';
+    const filePath = path.join(process.cwd(), uploadDir, 'portfolio', photo.filename);
     try {
       await fs.unlink(filePath);
     } catch (error) {
@@ -104,6 +107,28 @@ export class PhotosService {
 
     await this.prisma.photo.delete({ where: { id } });
     return { message: 'Фото удалено' };
+  }
+
+  async removeMany(ids: string[]) {
+    const photos = await this.prisma.photo.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, filename: true },
+    });
+
+    const uploadDir = process.env.UPLOAD_DIR || './uploads';
+    for (const photo of photos) {
+      const filePath = path.join(process.cwd(), uploadDir, 'portfolio', photo.filename);
+      try {
+        await fs.unlink(filePath);
+      } catch (error) {
+        console.warn(`Failed to delete file ${filePath}:`, error);
+      }
+    }
+
+    const result = await this.prisma.photo.deleteMany({
+      where: { id: { in: photos.map((photo) => photo.id) } },
+    });
+    return { deleted: result.count };
   }
 
   async reorder(categoryId: string, reorderDto: ReorderPhotosDto) {

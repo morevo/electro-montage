@@ -8,6 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
+import { createHash, randomUUID } from 'crypto';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
@@ -27,9 +28,9 @@ export class AuthService {
   ) {}
 
   async register(registerDto: RegisterDto, res: Response) {
-    const existingUser = await this.usersService.findByEmail(registerDto.email);
+    const existingUser = await this.usersService.findByLogin(registerDto.login);
     if (existingUser) {
-      throw new ConflictException('Пользователь с таким email уже существует');
+      throw new ConflictException('Пользователь с таким логином уже существует');
     }
 
     const user = await this.usersService.create(registerDto);
@@ -37,24 +38,30 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto, res: Response) {
-    const user = await this.usersService.findByEmail(loginDto.email);
+    const user = await this.usersService.findByLogin(loginDto.login);
+    // Одинаковый текст для «нет юзера» и «неверный пароль», чтобы по ответу
+    // нельзя было перебирать логины.
+    const invalidCredentials = 'Неверный логин или пароль';
     if (!user) {
-      throw new UnauthorizedException('Неверный email или пароль');
+      throw new UnauthorizedException(invalidCredentials);
     }
 
     const isPasswordValid = await bcrypt.compare(loginDto.password, user.passwordHash);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Неверный email или пароль');
+      throw new UnauthorizedException(invalidCredentials);
     }
 
     return this.generateTokensAndSetCookies(user, res);
   }
 
-  async logout(userId: string, res: Response) {
-    await this.prisma.refreshToken.updateMany({
-      where: { userId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
+  async logout(refreshToken: string | undefined, res: Response) {
+    // Отзываем текущий refresh-токен (если он есть), затем чистим cookies.
+    if (refreshToken) {
+      await this.prisma.refreshToken.updateMany({
+        where: { tokenHash: this.hashToken(refreshToken), revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    }
 
     this.clearAuthCookies(res);
     return { message: 'Успешный выход' };
@@ -65,7 +72,8 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token не предоставлен');
     }
 
-    const tokenHash = await bcrypt.hash(refreshToken, 10);
+    // Детерминированный хеш: bcrypt не подходит для поиска (у каждого хеша своя соль)
+    const tokenHash = this.hashToken(refreshToken);
     const storedToken = await this.prisma.refreshToken.findUnique({
       where: { tokenHash },
       include: { user: true },
@@ -75,10 +83,9 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token недействителен или истёк');
     }
 
-    await this.prisma.refreshToken.update({
-      where: { id: storedToken.id },
-      data: { revokedAt: new Date() },
-    });
+    // Удаляем старый токен (ротация): хранить отозванные строки незачем,
+    // а tokenHash уникален и мешал бы повторной выдаче в ту же секунду.
+    await this.prisma.refreshToken.delete({ where: { id: storedToken.id } });
 
     return this.generateTokensAndSetCookies(storedToken.user, res);
   }
@@ -90,7 +97,7 @@ export class AuthService {
   private async generateTokensAndSetCookies(user: any, res: Response) {
     const payload: TokenPayload = {
       sub: user.id,
-      email: user.email,
+      login: user.login,
       role: user.role,
     };
 
@@ -98,16 +105,27 @@ export class AuthService {
     const refreshToken = this.jwtService.sign(payload, {
       secret: this.configService.get('JWT_REFRESH_SECRET'),
       expiresIn: this.configService.get('JWT_REFRESH_TTL') || '7d',
+      // jti делает каждый refresh-токен уникальным: без него два токена,
+      // выданные в одну секунду, совпадали по подписи и падали на unique tokenHash.
+      jwtid: randomUUID(),
     });
 
-    const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
-    const refreshTtlDays = parseInt(this.configService.get('JWT_REFRESH_TTL') || '7d', 10);
+    const refreshTokenHash = this.hashToken(refreshToken);
+    const refreshTtlMs = this.parseTtl(this.configService.get('JWT_REFRESH_TTL') || '7d');
+
+    // Чистим просроченные/отозванные токены этого пользователя
+    await this.prisma.refreshToken.deleteMany({
+      where: {
+        userId: user.id,
+        OR: [{ expiresAt: { lt: new Date() } }, { revokedAt: { not: null } }],
+      },
+    });
 
     await this.prisma.refreshToken.create({
       data: {
         tokenHash: refreshTokenHash,
         userId: user.id,
-        expiresAt: new Date(Date.now() + refreshTtlDays * 24 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + refreshTtlMs),
       },
     });
 
@@ -116,7 +134,7 @@ export class AuthService {
     return {
       user: {
         id: user.id,
-        email: user.email,
+        login: user.login,
         name: user.name,
         role: user.role,
       },
@@ -160,6 +178,10 @@ export class AuthService {
       sameSite: 'strict',
       path: '/',
     });
+  }
+
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
   }
 
   private parseTtl(ttl: string): number {

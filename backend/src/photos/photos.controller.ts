@@ -11,16 +11,20 @@ import {
   HttpCode,
   HttpStatus,
   UploadedFile,
+  UploadedFiles,
   UseInterceptors,
   BadRequestException,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiCookieAuth, ApiConsumes, ApiQuery } from '@nestjs/swagger';
 
 import { PhotosService } from './photos.service';
+import { UploadService } from '../upload/upload.service';
 import { CreatePhotoDto } from './dto/create-photo.dto';
 import { UpdatePhotoDto } from './dto/update-photo.dto';
 import { ReorderPhotosDto } from './dto/reorder-photos.dto';
+import { BulkCreatePhotosDto } from './dto/bulk-create-photos.dto';
+import { BulkDeletePhotosDto } from './dto/bulk-delete-photos.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 @ApiTags('Photos')
@@ -29,7 +33,10 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 @ApiBearerAuth()
 @ApiCookieAuth('access_token')
 export class PhotosController {
-  constructor(private readonly photosService: PhotosService) {}
+  constructor(
+    private readonly photosService: PhotosService,
+    private readonly uploadService: UploadService,
+  ) {}
 
   @Post()
   @ApiConsumes('multipart/form-data')
@@ -42,13 +49,78 @@ export class PhotosController {
     if (!file) {
       throw new BadRequestException('Файл не загружен');
     }
+    // Оптимизируем в WebP и получаем реальные размеры
+    const { width, height } = await this.uploadService.validateAndProcessImage(file.path);
+    const webpFilename = file.filename.replace(/\.(jpg|jpeg|png|webp)$/i, '.webp');
+
     const fileData = {
-      filename: file.filename,
+      filename: webpFilename,
       originalName: file.originalname,
-      mimeType: file.mimetype,
+      mimeType: 'image/webp',
       size: file.size,
+      width,
+      height,
     };
     return this.photosService.create(createPhotoDto.categoryId, createPhotoDto, fileData);
+  }
+
+  /**
+   * Загрузка нескольких фото за раз. Названия приходят JSON-строкой в том же
+   * порядке, что и файлы; если название не передали — берём имя файла.
+   */
+  @Post('bulk')
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Загрузить несколько фото' })
+  @UseInterceptors(FilesInterceptor('files', 20))
+  async createMany(
+    @Body() dto: BulkCreatePhotosDto,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    if (!files || files.length === 0) {
+      throw new BadRequestException('Файлы не загружены');
+    }
+
+    let titles: string[] = [];
+    if (dto.titles) {
+      try {
+        const parsed = JSON.parse(dto.titles);
+        if (Array.isArray(parsed)) titles = parsed.map((value) => String(value));
+      } catch {
+        throw new BadRequestException('Поле titles должно быть JSON-массивом строк');
+      }
+    }
+
+    const created = [];
+    for (const [index, file] of files.entries()) {
+      const { width, height } = await this.uploadService.validateAndProcessImage(file.path);
+      const webpFilename = file.filename.replace(/\.(jpg|jpeg|png|webp)$/i, '.webp');
+      const title =
+        titles[index]?.trim() || file.originalname.replace(/\.[^.]+$/, '') || 'Фото';
+
+      created.push(
+        await this.photosService.create(
+          dto.categoryId,
+          { title, description: dto.description, categoryId: dto.categoryId } as CreatePhotoDto,
+          {
+            filename: webpFilename,
+            originalName: file.originalname,
+            mimeType: 'image/webp',
+            size: file.size,
+            width,
+            height,
+          },
+        ),
+      );
+    }
+
+    return { created };
+  }
+
+  @Post('bulk-delete')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Удалить несколько фото' })
+  deleteMany(@Body() dto: BulkDeletePhotosDto) {
+    return this.photosService.removeMany(dto.ids);
   }
 
   @Get()
@@ -70,6 +142,13 @@ export class PhotosController {
     return this.photosService.findOne(id);
   }
 
+  // ВАЖНО: статические маршруты должны идти до ':id', иначе reorder попадёт в ':id'
+  @Patch('reorder')
+  @ApiOperation({ summary: 'Изменить порядок фото в категории' })
+  reorder(@Body() reorderDto: ReorderPhotosDto) {
+    return this.photosService.reorder(reorderDto.categoryId, reorderDto);
+  }
+
   @Patch(':id')
   @ApiOperation({ summary: 'Обновить метаданные фото' })
   update(@Param('id') id: string, @Body() updatePhotoDto: UpdatePhotoDto) {
@@ -81,11 +160,5 @@ export class PhotosController {
   @ApiOperation({ summary: 'Удалить фото' })
   delete(@Param('id') id: string) {
     return this.photosService.delete(id);
-  }
-
-  @Patch('reorder')
-  @ApiOperation({ summary: 'Изменить порядок фото в категории' })
-  reorder(@Body() reorderDto: ReorderPhotosDto) {
-    return this.photosService.reorder(reorderDto.categoryId, reorderDto);
   }
 }

@@ -3,13 +3,17 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  // Прод — MySQL 8 на самом сервере (без Docker). Локальная разработка —
+  // тоже MySQL 8, чтобы схема и типы совпадали один в один.
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
 model User {
   id           String         @id @default(uuid())
-  email        String         @unique
+  // Логин для входа в админку. Сознательно НЕ e-mail: адрес почты —
+  // это угадываемая подсказка, а не секрет.
+  login        String         @unique
   passwordHash String
   name         String?
   role         Role           @default(ADMIN)

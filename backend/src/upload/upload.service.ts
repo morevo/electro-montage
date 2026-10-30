@@ -29,7 +29,7 @@ export class UploadService {
     }
   }
 
-  getMulterConfig() {
+  getMulterConfig(maxFiles = 1) {
     return {
       storage: multer.diskStorage({
         destination: (req: Request, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => {
@@ -53,7 +53,7 @@ export class UploadService {
       },
       limits: {
         fileSize: this.maxFileSize,
-        files: 1,
+        files: maxFiles,
       },
     };
   }

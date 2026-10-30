@@ -1,11 +1,35 @@
+# SPA-роутинг для статики на Apache (shared-хостинг reg.ru).
+# Нужен только если фронтенд лежит на Хост-А, а API — на VPS (api.<домен>).
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
 
-  # Не трогаем реально существующие файлы и папки
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
+  # API и загрузки проксируются на VPS (mod_proxy должен быть включён в панели).
+  # Замените api.example.ru на адрес вашего VPS.
+  # RewriteRule ^api/(.*)$ https://api.example.ru/api/$1 [P,L]
+  # RewriteRule ^uploads/(.*)$ https://api.example.ru/uploads/$1 [P,L]
 
-  # Всё остальное отдаём в index.html — маршрутизацию берёт на себя React Router
-  RewriteRule ^ index.html [L]
+  # Существующие файлы и папки отдаём как есть
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Всё остальное — index.html (клиентский роутинг React)
+  RewriteRule . /index.html [L]
+</IfModule>
+
+# Кэширование статики
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType text/css "access plus 1 year"
+  ExpiresByType image/webp "access plus 1 year"
+  ExpiresByType image/jpeg "access plus 1 year"
+  ExpiresByType image/png "access plus 1 year"
+  ExpiresByType text/html "access plus 0 seconds"
+</IfModule>
+
+# Сжатие
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml
 </IfModule>

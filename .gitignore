@@ -1,5 +1,59 @@
-node_modules
-dist
-*.log
-.idea
+# ── Зависимости ──
+node_modules/
+
+# ── Сборка ──
+dist/
+build/
+.vite/
+
+# ── Секреты: в git не должны попадать ──
+.env
+.env.*
+!.env.example
+!.env.production.example
+*.local.md
+secrets/
+*.pem
+
+# ── Личные файлы с доступами (их место — менеджер паролей) ──
+ДОСТУПЫ.local.md
+CREDENTIALS.local.md
+
+# ── Загруженные файлы и рантайм бэкенда ──
+backend/uploads/
+uploads/
+backend/.run/
+backend/logs/
+
+# ── IDE / системное ──
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
 cloudflared.exe
+
+# Мусорный файл, который создаёт Windows при случайном перенаправлении
+nul
+
+# ── Логи ──
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Тесты / покрытие ──
+coverage/
+
+# ── Локальные инструменты ──
+.claude/worktrees/
+.claude/settings.local.json
+.freebuff/
+.playwright-mcp/
+screenshots/
+
+# Build artifacts (tsc incremental)
+frontend/tsconfig.tsbuildinfo
+
+# Личные материалы (не для публичного репозитория)
+Фото для добавления/

@@ -1,12 +1,16 @@
-import { IsEmail, IsString, MinLength, IsOptional, IsEnum } from 'class-validator';
+import { IsString, MinLength, IsOptional, IsEnum, Matches, MaxLength } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 
 export class UpdateUserDto {
-  @ApiPropertyOptional({ example: 'admin@electromontage.ru' })
+  @ApiPropertyOptional({ example: 'admin_xxxxxxxx' })
   @IsOptional()
-  @IsEmail({}, { message: 'Некорректный email' })
-  email?: string;
+  @IsString({ message: 'Укажите логин' })
+  @Matches(/^[a-zA-Z0-9_.-]+$/, {
+    message: 'Логин — не e-mail: только латиница, цифры, точка, дефис и подчёркивание',
+  })
+  @MaxLength(64)
+  login?: string;
 
   @ApiPropertyOptional({ example: 'newPassword123' })
   @IsOptional()

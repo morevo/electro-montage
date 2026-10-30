@@ -1,25 +1,40 @@
 name: Deploy to reg.ru
 
+# Автодеплой без Docker:
+#   • frontend — сборка и выгрузка dist на VPS по SSH (rsync) либо по FTPS;
+#   • backend  — git pull на VPS, npm ci, prisma db push, nest build и
+#                перезапуск Node-процесса через scripts/server-start.sh
+#                (PID-файл, без docker и без sudo).
+#
+# MySQL 8 на сервере уже установлен нативно (Docker не нужен и не ставится),
+# база и пользователь созданы один раз вручную — см. STEP_BY_STEP_GUIDE.md §4
+# и AUTODEPLOY.md.
+
 on:
   push:
     branches: [main, master]
   workflow_dispatch:
 
 env:
+  # ── Frontend (FTP на хостинг) ──
   REG_RU_HOST: ${{ secrets.REG_RU_HOST }}
   REG_RU_USER: ${{ secrets.REG_RU_USER }}
   REG_RU_PASSWORD: ${{ secrets.REG_RU_PASSWORD }}
   REG_RU_FRONTEND_PATH: ${{ secrets.REG_RU_FRONTEND_PATH }}
-  # Для бэкенда на VPS:
+  # Как выкладывать статику: ssh (rsync на VPS, по умолчанию) или ftp (FTPS).
+  # Не задан → ssh, если есть REG_RU_SSH_HOST, иначе ftp.
+  REG_RU_FRONTEND_MODE: ${{ secrets.REG_RU_FRONTEND_MODE }}
+  # ── Backend (SSH на VPS) ──
   REG_RU_SSH_HOST: ${{ secrets.REG_RU_SSH_HOST }}
   REG_RU_SSH_USER: ${{ secrets.REG_RU_SSH_USER }}
   REG_RU_SSH_KEY: ${{ secrets.REG_RU_SSH_KEY }}
   REG_RU_SSH_PORT: ${{ secrets.REG_RU_SSH_PORT || '22' }}
   REG_RU_BACKEND_PATH: ${{ secrets.REG_RU_BACKEND_PATH }}
+  REG_RU_DOMAIN: ${{ secrets.REG_RU_DOMAIN }}
 
 jobs:
   # ──────────────────────────────────────────────
-  # FRONTEND: сборка и деплой по FTP/SFTP на shared-хостинг
+  # FRONTEND: сборка и деплой по FTP
   # ──────────────────────────────────────────────
   deploy-frontend:
     runs-on: ubuntu-latest
@@ -43,8 +58,31 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+      # ── Вариант A (по умолчанию): статика прямо на VPS, nginx отдаёт папку ──
+      - name: Setup SSH agent for VPS
+        if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ env.REG_RU_SSH_KEY }}
+
+      - name: Trust VPS host key
+        if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${REG_RU_SSH_PORT:-22}" -H "$REG_RU_SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload dist to VPS (rsync)
+        if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
+        run: |
+          rsync -az --delete --chmod=D755,F644 \
+            -e "ssh -p ${REG_RU_SSH_PORT:-22}" \
+            ./dist/ \
+            "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}:${REG_RU_FRONTEND_PATH}/"
+          echo "✅ Статика выложена в ${REG_RU_FRONTEND_PATH} на VPS"
+
+      # ── Вариант B: FTPS на shared-хостинг (только если режим ftp) ──
       - name: Deploy to reg.ru via FTP
-        if: env.REG_RU_HOST != ''
+        if: env.REG_RU_HOST != '' && (env.REG_RU_FRONTEND_MODE == 'ftp' || env.REG_RU_SSH_HOST == '')
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ env.REG_RU_HOST }}
@@ -54,54 +92,20 @@ jobs:
           server-dir: ${{ env.REG_RU_FRONTEND_PATH }}
           protocol: ftps
           port: 21
-          # Исключаем лишнее
           exclude: |
             **/.git*
             **/.git*/**
             **/node_modules/**
             **/*.log
-
-      - name: Deploy to reg.ru via SFTP (альтернатива)
-        if: env.REG_RU_HOST != '' && env.REG_RU_SSH_HOST != ''
-        uses: appleboy/scp-action@v1
-        with:
-          host: ${{ env.REG_RU_SSH_HOST }}
-          username: ${{ env.REG_RU_SSH_USER }}
-          key: ${{ env.REG_RU_SSH_KEY }}
-          port: ${{ env.REG_RU_SSH_PORT }}
-          source: "frontend/dist/*"
-          target: ${{ env.REG_RU_FRONTEND_PATH }}
-          strip_components: 1
+            **/*.map
 
   # ──────────────────────────────────────────────
-  # BACKEND: сборка Docker-образа и деплой на VPS
+  # BACKEND: обновление кода и перезапуск Node на VPS
   # ──────────────────────────────────────────────
   deploy-backend:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./backend
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          push: false
-          tags: electromontage-backend:latest
-          load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Save Docker image
-        run: docker save electromontage-backend:latest | gzip > backend-image.tar.gz
-
-      - name: Deploy to reg.ru VPS via SSH
+      - name: Deploy backend on VPS via SSH
         if: env.REG_RU_SSH_HOST != ''
         uses: appleboy/ssh-action@v1
         with:
@@ -109,29 +113,63 @@ jobs:
           username: ${{ env.REG_RU_SSH_USER }}
           key: ${{ env.REG_RU_SSH_KEY }}
           port: ${{ env.REG_RU_SSH_PORT }}
+          script_stop: true
           script: |
-            cd ${{ env.REG_RU_BACKEND_PATH }}
-            # Останавливаем старый контейнер
-            docker-compose down || true
-            # Удаляем старый образ
-            docker rmi electromontage-backend:latest || true
-            # Загружаем новый образ
-            docker load < backend-image.tar.gz
-            # Запускаем
-            docker-compose up -d
-            # Чистим неиспользуемые образы
-            docker image prune -f
+            set -euo pipefail
 
-      - name: Copy Docker image to VPS
-        if: env.REG_RU_SSH_HOST != ''
-        uses: appleboy/scp-action@v1
-        with:
-          host: ${{ env.REG_RU_SSH_HOST }}
-          username: ${{ env.REG_RU_SSH_USER }}
-          key: ${{ env.REG_RU_SSH_KEY }}
-          port: ${{ env.REG_RU_SSH_PORT }}
-          source: "backend-image.tar.gz"
-          target: ${{ env.REG_RU_BACKEND_PATH }}
+            # Секрет REG_RU_BACKEND_PATH задаёт путь явно. Если он не задан —
+            # берём путь из инструкции (AUTODEPLOY.md §3), чтобы деплой не падал
+            # на пустой переменной.
+            APP_PATH="${REG_RU_BACKEND_PATH:-$HOME/apps/electromontage}"
+            if [ ! -d "$APP_PATH/.git" ]; then
+              echo "❌ В $APP_PATH нет git-клона. Сделайте его один раз:"
+              echo "   git clone https://github.com/morevo/electro-montage.git $APP_PATH"
+              echo "   (или задайте секрет REG_RU_BACKEND_PATH с реальным путём) "
+              exit 1
+            fi
+
+            cd "$APP_PATH"
+
+            # 0. backend/.env не в репозитории — сохраняем перед reset --hard
+            if [ -f backend/.env ]; then
+              cp backend/.env "$HOME/.backend.env.backup"
+              echo "backend/.env сохранён"
+            fi
+
+            # 1. Свежий код
+            git fetch --all --prune
+            git reset --hard "origin/main" 2>/dev/null || git reset --hard "origin/master"
+
+            if [ ! -f backend/.env ] && [ -f "$HOME/.backend.env.backup" ]; then
+              mv "$HOME/.backend.env.backup" backend/.env
+              echo "backend/.env восстановлен"
+            fi
+            if [ ! -f backend/.env ]; then
+              echo "❌ backend/.env не найден — заполните его по backend/.env.production.example"
+              exit 1
+            fi
+
+            # 2. Node и npm на месте?
+            node -v
+            npm -v
+
+            # 3. Зависимости и Prisma Client (MySQL)
+            cd backend
+            npm ci --no-audit --no-fund
+            npx prisma generate
+
+            # 4. Схема БД. Миграций в проекте нет — используем db push.
+            #    DATABASE_URL берётся из backend/.env (prisma читает его сам).
+            npx prisma db push --skip-generate
+
+            # 5. Сборка
+            npm run build
+
+            # 6. Перезапуск без Docker и без root: PID-файл + health-check внутри
+            chmod +x scripts/server-start.sh scripts/server-stop.sh
+            bash scripts/server-start.sh
+
+            echo "✅ Бэкенд обновлён"
 
   # ──────────────────────────────────────────────
   # NOTIFICATION
@@ -141,10 +179,14 @@ jobs:
     runs-on: ubuntu-latest
     if: always()
     steps:
-      - name: Send notification
-        if: env.REG_RU_HOST != '' || env.REG_RU_SSH_HOST != ''
+      - name: Deploy summary
         run: |
-          echo "✅ Деплой завершён!"
-          echo "Frontend: https://${{ secrets.REG_RU_DOMAIN }}"
-          echo "Backend API: https://${{ secrets.REG_RU_DOMAIN }}/api"
-          # Можно добавить отправку в Telegram/Slack/Email
+          echo "Frontend job: ${{ needs.deploy-frontend.result }}"
+          echo "Backend job:  ${{ needs.deploy-backend.result }}"
+          echo "Frontend URL: https://${{ secrets.REG_RU_DOMAIN }}"
+          echo "API URL:      https://${{ secrets.REG_RU_DOMAIN }}/api"
+          if [ "${{ needs.deploy-backend.result }}" = "failure" ] || [ "${{ needs.deploy-frontend.result }}" = "failure" ]; then
+            echo "❌ Деплой завершился с ошибкой — смотрите логи job'ов выше"
+            exit 1
+          fi
+          echo "✅ Деплой завершён"

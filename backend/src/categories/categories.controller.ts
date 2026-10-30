@@ -38,16 +38,23 @@ export class CategoriesController {
     return this.categoriesService.findAll();
   }
 
+  @Get('slug/:slug')
+  @ApiOperation({ summary: 'Получить категорию по слагу (для публичного API)' })
+  findBySlug(@Param('slug') slug: string) {
+    return this.categoriesService.findBySlug(slug);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Получить категорию по ID' })
   findOne(@Param('id') id: string) {
     return this.categoriesService.findOne(id);
   }
 
-  @Get('slug/:slug')
-  @ApiOperation({ summary: 'Получить категорию по слагу (для публичного API)' })
-  findBySlug(@Param('slug') slug: string) {
-    return this.categoriesService.findBySlug(slug);
+  // ВАЖНО: статические маршруты должны идти до ':id', иначе reorder попадёт в ':id'
+  @Patch('reorder')
+  @ApiOperation({ summary: 'Изменить порядок категорий' })
+  reorder(@Body() reorderDto: ReorderCategoriesDto) {
+    return this.categoriesService.reorder(reorderDto);
   }
 
   @Patch(':id')
@@ -61,11 +68,5 @@ export class CategoriesController {
   @ApiOperation({ summary: 'Удалить категорию' })
   delete(@Param('id') id: string) {
     return this.categoriesService.delete(id);
-  }
-
-  @Patch('reorder')
-  @ApiOperation({ summary: 'Изменить порядок категорий' })
-  reorder(@Body() reorderDto: ReorderCategoriesDto) {
-    return this.categoriesService.reorder(reorderDto);
   }
 }

@@ -3,6 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
+import { createHash } from 'crypto';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { TokenPayload } from '../interfaces/token-payload.interface';
@@ -31,7 +32,7 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
   async validate(req: RequestWithRefreshToken, payload: TokenPayload) {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, email: true, name: true, role: true },
+      select: { id: true, login: true, name: true, role: true },
     });
 
     if (!user) {
@@ -39,7 +40,7 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
     }
 
     const tokenHash = req.cookies?.refresh_token
-      ? await import('bcrypt').then((b) => b.hash(req.cookies.refresh_token, 10))
+      ? createHash('sha256').update(req.cookies.refresh_token).digest('hex')
       : null;
 
     if (tokenHash) {

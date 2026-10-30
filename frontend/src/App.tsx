@@ -2,29 +2,40 @@ import { useState, useCallback, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Helmet } from 'react-helmet-async'
-import Preloader from './components/Preloader'
-import Header from './components/Header'
-import Hero from './components/Hero'
-import About from './components/About'
-import Services from './components/Services'
-import Portfolio from './components/Portfolio'
-import Advantages from './components/Advantages'
-import Contacts from './components/Contacts'
-import Footer from './components/Footer'
-import ServicePage from './pages/ServicePage'
-import NotFound from './pages/NotFound'
-import AdminLogin from './admin/pages/AdminLogin'
-import AdminLayout from './admin/components/AdminLayout'
-import CategoriesPage from './admin/pages/CategoriesPage'
-import PhotosPage from './admin/pages/PhotosPage'
-import { AuthProvider } from './admin/context/AuthContext'
-import { useAuth } from './admin/hooks/useAuth'
+import { Toaster } from 'react-hot-toast'
+import Preloader from '@/modules/Main/components/Preloader'
+import Header from '@/modules/Main/components/Header'
+import Hero from '@/modules/Main/components/Hero'
+import About from '@/modules/Main/components/About'
+import Services from '@/modules/Main/components/Services'
+import Portfolio from '@/modules/Main/components/Portfolio'
+import Advantages from '@/modules/Main/components/Advantages'
+import Contacts from '@/modules/Main/components/Contacts'
+import Footer from '@/modules/Main/components/Footer'
+import ServicePage from '@/modules/Shared/pages/ServicePage'
+import NotFound from '@/modules/Shared/pages/NotFound'
+import AdminLogin from '@/modules/Admin/pages/AdminLogin'
+import AdminLayout from '@/modules/Admin/components/AdminLayout'
+import CategoriesPage from '@/modules/Admin/pages/CategoriesPage'
+import CategoryEditorPage from '@/modules/Admin/pages/CategoryEditorPage'
+import PhotosPage from '@/modules/Admin/pages/PhotosPage'
+import PhotoEditorPage from '@/modules/Admin/pages/PhotoEditorPage'
+import AdminGuidePage from '@/modules/Admin/pages/AdminGuidePage'
+import { AuthProvider } from '@/modules/Admin/context/AuthContext'
+import { useAuth } from '@/modules/Admin/hooks/useAuth'
 
 const pageTransition = {
   initial: { opacity: 0, y: 24 },
   animate: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } },
   exit: { opacity: 0, y: -16, transition: { duration: 0.3, ease: 'easeIn' } },
 }
+
+// Переход между страницами админки — те же тайминги, что у страницы услуги
+// (ServicePage): вход 0.5s easeOut, выход 0.3s. Но не через AnimatePresence:
+// на вложенных страницах (у них свои AnimatePresence) mode="wait" периодически
+// не дожидался окончания exit — URL менялся, а старая страница оставалась
+// висеть. Поэтому фазы ведём сами, анимирует CSS-класс из index.css.
+const ADMIN_PAGE_EXIT_MS = 300
 
 const faqSchema = {
   '@context': 'https://schema.org',
@@ -106,9 +117,36 @@ function HomePage() {
 
 function AdminRoutes() {
   const { user, loading } = useAuth()
+  const location = useLocation()
+
+  // Показываемая страница и фаза перехода. Сначала гасим текущую (0.3s),
+  // только потом меняем location — иначе контент подменяется резко.
+  const [rendered, setRendered] = useState(location)
+  const [leaving, setLeaving] = useState(false)
+
+  useEffect(() => {
+    if (location.pathname === rendered.pathname) {
+      setLeaving(false)
+      return
+    }
+    setLeaving(true)
+    const timer = setTimeout(() => {
+      setRendered(location)
+      setLeaving(false)
+    }, ADMIN_PAGE_EXIT_MS)
+    return () => clearTimeout(timer)
+  }, [location, rendered])
 
   if (loading) {
-    return <Preloader key="admin-preloader" onComplete={() => {}} />
+    // Лёгкий индикатор вместо полноэкранного прелоадера при переходе по табам админки
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div
+          className="w-10 h-10 rounded-full border-2 border-accent/30 border-t-accent animate-spin"
+          aria-label="Загрузка"
+        />
+      </div>
+    )
   }
 
   if (!user) {
@@ -117,11 +155,28 @@ function AdminRoutes() {
 
   return (
     <AdminLayout>
-      <Routes>
-        <Route path="categories" element={<CategoriesPage />} />
-        <Route path="photos" element={<PhotosPage />} />
-        <Route path="" element={<Navigate to="categories" replace />} />
-      </Routes>
+      {/* Переход между страницами админки: табы в меню, список → форма фото,
+          список → форма категории. Во время выхода остаётся старая страница,
+          а не мигает новая — поэтому рендерим по отложенному location. */}
+      <div
+        key={rendered.pathname}
+        className={leaving ? 'admin-page-out' : 'admin-page-in'}
+      >
+        <Routes location={rendered}>
+            <Route path="categories" element={<CategoriesPage />} />
+            <Route path="categories/new" element={<CategoryEditorPage />} />
+            <Route path="categories/:id/edit" element={<CategoryEditorPage />} />
+            <Route path="photos" element={<PhotosPage />} />
+            <Route path="photos/new" element={<PhotoEditorPage />} />
+            <Route path="photos/:id/edit" element={<PhotoEditorPage />} />
+            <Route path="guide" element={<AdminGuidePage />} />
+            {/* Абсолютный путь обязателен: относительный Navigate внутри
+                Routes с отложенным location приклеивался к текущему URL
+                и уводил в /admin/guide/guide/guide… */}
+            <Route path="" element={<Navigate to="/admin/guide" replace />} />
+            <Route path="*" element={<Navigate to="/admin/photos" replace />} />
+          </Routes>
+        </div>
     </AdminLayout>
   )
 }
@@ -129,9 +184,17 @@ function AdminRoutes() {
 function AnimatedRoutes() {
   const location = useLocation()
 
+  // Ключом служит только верхнеуровневый раздел ("", "services", "admin").
+  // Если ключом брать весь pathname, то при каждом переходе внутри админки
+  // внешний AnimatePresence mode="wait" размонтирует AuthProvider, сайдбар
+  // и контент целиком: каждый клик по меню показывал спиннер и убивал
+  // плавность. Внутренний AnimatePresence в AdminRoutes анимирует страницы
+  // админки по отдельности — ради этого наружу он и оставлен только смена раздела.
+  const section = location.pathname.split('/')[1] || 'home'
+
   return (
     <AnimatePresence mode="wait">
-      <Routes location={location} key={location.pathname}>
+      <Routes location={location} key={section}>
         <Route path="/" element={<HomePage />} />
         <Route path="/services/:id" element={<ServicePage />} />
         <Route
@@ -155,12 +218,31 @@ export default function App() {
   // Авторизация отключена — сайт открытый, показываем сразу прелоадер и контент.
   // const [authed, setAuthed] = useState(false)
   // const handleAuth = useCallback(() => setAuthed(true), [])
-  const [loading, setLoading] = useState(true)
+  // Прелоадер — только для публичного сайта: в админке он тормозит вход
+  const [loading, setLoading] = useState(() => !window.location.pathname.startsWith('/admin'))
   const handlePreloaderComplete = useCallback(() => setLoading(false), [])
 
   return (
-    <BrowserRouter basename="/">
-      <AnimatePresence mode="wait">
+    <>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 3500,
+          style: {
+            background: 'var(--color-primary)',
+            color: 'var(--color-on-surface)',
+            border: '1px solid var(--color-border)',
+            borderRadius: '12px',
+            fontSize: '14px',
+            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.35)',
+          },
+          success: { iconTheme: { primary: '#f59e0b', secondary: '#0a1628' } },
+          error: { iconTheme: { primary: '#ef4444', secondary: '#0a1628' } },
+        }}
+      />
+      <BrowserRouter basename="/">
+        {/* Без AnimatePresence: прелоадер сам плавно затухает и размонтируется,
+            иначе в StrictMode exit-анимация может не сработать и слой останется сверху. */}
         {loading ? (
           <Preloader key="preloader" onComplete={handlePreloaderComplete} />
         ) : (
@@ -173,7 +255,7 @@ export default function App() {
             <AnimatedRoutes />
           </motion.div>
         )}
-      </AnimatePresence>
-    </BrowserRouter>
+      </BrowserRouter>
+    </>
   )
 }

@@ -1,6 +1,9 @@
 # CLAUDE.md — ElectroMontage Project Documentation
 
-This file provides guidance for working with the ElectroMontage project (React SPA + NestJS API).
+This file provides guidance for working with the ElectroMontage project (React SPA + NestJS API + MySQL 8).
+
+**Стек:** без Docker. MySQL 8 установлен нативно, API — обычный Node-процесс,
+фронтенд — статика за nginx.
 
 ---
 
@@ -11,259 +14,201 @@ electro-montage/
 ├── frontend/                 # React 18 + Vite + TypeScript + Tailwind
 │   ├── src/                  # React components, pages, hooks, context
 │   ├── public/               # Static assets
-│   ├── index.html
-│   ├── package.json
-│   ├── vite.config.ts
-│   ├── tailwind.config.js
-│   ├── tsconfig.json
-│   ├── Dockerfile            # Multi-stage: build → nginx
-│   ├── nginx.conf            # SPA fallback + API proxy
+│   ├── vite.config.ts        # dev-proxy /api → localhost:3001
+│   └── package.json
+│
+├── backend/                  # NestJS 10 + Prisma + MySQL 8
+│   ├── src/                  # Modules: auth, categories, photos, upload, public
+│   ├── prisma/schema.prisma  # User, Category, Photo, RefreshToken
+│   ├── scripts/
+│   │   ├── server-start.sh   # запуск API без Docker (PID-файл + health-check)
+│   │   ├── server-stop.sh
+│   │   └── create-admin.js
+│   ├── uploads/              # загруженные фото (в git не попадают)
 │   └── .env.example
 │
-├── backend/                  # NestJS 10 + Prisma + PostgreSQL
-│   ├── src/                  # Modules: auth, categories, photos, upload, public
-│   ├── prisma/
-│   │   └── schema.prisma     # User, Category, Photo, RefreshToken
-│   ├── package.json
-│   ├── Dockerfile            # Multi-stage: deps → build → runner
-│   ├── docker-compose.yml    # Local dev (postgres + backend)
-│   ├── docker-compose.prod.yml # Production VPS
-│   ├── .env.example
-│   └── .env.production.example
+├── deploy/
+│   └── nginx.conf            # серверный конфиг: статика + /api + /uploads
 │
-├── .github/workflows/
-│   └── deploy.yml            # Auto-deploy to reg.ru on push to main
-│
-├── docker-compose.yml        # Local full stack (frontend + backend + postgres)
-├── package.json              # Root workspace (npm workspaces)
+├── .github/workflows/deploy.yml   # автодеплой на reg.ru
+├── AUTODEPLOY.md                  # инструкция по автодеплою (VPS, без Docker)
+├── STEP_BY_STEP_GUIDE.md          # полная инструкция по деплою
 └── CLAUDE.md
 ```
+
+Корневого `package.json` нет: зависимости ставятся отдельно в `frontend/` и `backend/`.
 
 ---
 
 ## 🚀 Local Development
 
-### Quick Start (All Services)
+Сначала — MySQL 8 и база (один раз), см. `STEP_BY_STEP_GUIDE.md` §1.2.
+
 ```bash
-# From root - starts frontend:5173, backend:3001, postgres:5432
-docker-compose up -d
+# backend
+cd backend && npm install
+npx prisma generate && npx prisma db push && npm run prisma:seed
+npm run start:dev            # http://localhost:3001, Swagger /api/docs
+
+# frontend (второй терминал)
+cd frontend && npm install && npm run dev   # http://localhost:5173
 ```
 
-### Frontend Only
+### Backend Commands
 ```bash
-cd frontend
-npm install          # First time only
-npm run dev          # http://localhost:5173
-npm run build        # Production build → dist/
-npm run preview      # Preview production build
+npm run build           # nest build → dist/
+npm run start:dev       # hot reload
+npm run start:prod      # node dist/main
+npm run prisma:studio   # DB GUI
+npm run prisma:seed     # админ + демо-фото (идемпотентно)
+npm run serve:start     # запуск как на сервере (PID-файл, logs/api.log)
+npm run serve:stop
+npm run test            # Jest
+npm run lint            # ESLint --fix
 ```
 
-### Backend Only
+### Frontend Commands
 ```bash
-cd backend
-npm install          # First time only
-npm run start:dev    # http://localhost:3001 (hot reload)
-npm run build        # Compile to dist/
-npm run start:prod   # Production mode (needs dist/)
-npm run prisma:studio # DB GUI
-npm run prisma:migrate # Run migrations
-npm run prisma:seed   # Seed admin user
-```
-
-### Useful Commands
-```bash
-# Frontend
-npm run lint         # (if configured)
-npm run format       # (if configured)
-
-# Backend
-npm run lint         # ESLint with fix
-npm run test         # Jest
-npm run test:watch   # Jest watch mode
-npm run test:cov     # Coverage report
-npm run prisma:generate # Regenerate Prisma Client
+npm run dev             # vite (5173)
+npm run build           # production build → dist/
+npm run preview
 ```
 
 ---
 
-## 🐳 Docker Commands
+## 🗄️ Database (MySQL 8)
 
-### Root (Full Stack)
-```bash
-docker-compose up -d           # Start all
-docker-compose down            # Stop all
-docker-compose logs -f         # Logs
-docker-compose build           # Rebuild images
+```sql
+CREATE DATABASE electromontage CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'electromontage'@'localhost' IDENTIFIED BY 'пароль';
+GRANT ALL PRIVILEGES ON electromontage.* TO 'electromontage'@'localhost';
+FLUSH PRIVILEGES;
 ```
 
-### Frontend
-```bash
-cd frontend
-npm run docker:up      # Build + start nginx
-npm run docker:down    # Stop
-npm run docker:logs    # Logs
-npm run docker:build   # Rebuild
-npm run docker:prune   # Clean volumes
-```
+`backend/.env`: `DATABASE_URL="mysql://ПОЛЬЗОВАТЕЛЬ:ПАРОЛЬ@127.0.0.1:3306/ИМЯ_БАЗЫ"` —
+подставьте доступы **уже существующей** базы. Создавать базу и пользователя
+заново не нужно: SQL выше — только для чистой установки.
 
-### Backend
-```bash
-cd backend
-npm run docker:up      # Start postgres + backend
-npm run docker:down    # Stop
-npm run docker:logs    # Logs
-npm run docker:build   # Rebuild
-npm run docker:prune   # Clean volumes
-```
+Миграций в проекте нет — схема применяется через `npx prisma db push`. На базе
+с данными он только добавляет недостающее; если расхождение схем серьёзное,
+Prisma предложит `--accept-data-loss` — сначала снимите `mysqldump`.
 
 ---
 
 ## 🔐 Auto-Deploy to reg.ru (GitHub Actions)
 
-### Workflow: `.github/workflows/deploy.yml`
-Triggers on push to `main`/`master`:
-1. **Frontend** → Build → FTP/FTPS deploy to shared hosting
-2. **Backend** → Build Docker image → SSH to VPS → docker-compose up
-3. **Notification** → Logs status
+`.github/workflows/deploy.yml`, триггер — push в `main`/`master`:
 
-### Required GitHub Secrets (Settings → Secrets → Actions)
+1. **deploy-frontend** — `npm ci` → `npm run build` → `rsync` собранного `dist`
+   на VPS по SSH (или FTPS, если `REG_RU_FRONTEND_MODE=ftp`).
+2. **deploy-backend** — SSH на сервер: сохранить `backend/.env` → `git reset --hard`
+   → `npm ci` → `prisma generate` → `prisma db push` → `npm run build`
+   → `bash scripts/server-start.sh` (перезапуск + health-check). Без Docker.
+3. **notify** — сводка.
+
+### Required GitHub Secrets
 
 | Secret | Description | Example |
 |--------|-------------|---------|
-| `REG_RU_HOST` | FTP host shared hosting | `ftp.electromontage.ru` |
-| `REG_RU_USER` | FTP login | `u1234567` |
-| `REG_RU_PASSWORD` | FTP password | `••••••••` |
-| `REG_RU_FRONTEND_PATH` | Web root path | `/public_html` or `/www` |
-| `REG_RU_SSH_HOST` | VPS IP/host | `123.45.67.89` |
-| `REG_RU_SSH_USER` | SSH user | `root` or `deploy` |
-| `REG_RU_SSH_KEY` | **Private SSH key** (no passphrase) | `-----BEGIN OPENSSH PRIVATE KEY-----...` |
-| `REG_RU_SSH_PORT` | SSH port (optional) | `22` |
-| `REG_RU_BACKEND_PATH` | VPS path for backend | `/opt/electromontage` |
-| `REG_RU_DOMAIN` | Your domain | `electromontage.ru` |
+| `REG_RU_FRONTEND_PATH` | Куда выкладывать `dist` (папка nginx `root`) | `/var/www/abcn77.ru` |
+| `REG_RU_FRONTEND_MODE` | `ssh` (по умолчанию) или `ftp` | `ssh` |
+| `REG_RU_SSH_HOST` | SSH host | `server266.reg.ru` |
+| `REG_RU_SSH_USER` | SSH user | `u3596867` |
+| `REG_RU_SSH_KEY` | Private key (без пароля) | `-----BEGIN OPENSSH PRIVATE KEY-----…` |
+| `REG_RU_SSH_PORT` | SSH port | `22` |
+| `REG_RU_BACKEND_PATH` | Путь к клону репо | `/home/u3596867/apps/electromontage` |
+| `REG_RU_DOMAIN` | Domain | `abcn77.ru` |
+| `REG_RU_HOST` / `REG_RU_USER` / `REG_RU_PASSWORD` | FTP, только для `REG_RU_FRONTEND_MODE=ftp` | `ftp.abcn77.ru` |
 
-> **SSH Key**: Generate `ssh-keygen -t ed25519 -f deploy_key` → public to VPS `~/.ssh/authorized_keys`, private → GitHub secret.
+Ключ: `ssh-keygen -t ed25519 -f ~/.ssh/deploy_key -C "github-actions-deploy" -N ""`,
+публичная часть — в `~/.ssh/authorized_keys` на сервере (без `sudo`), приватная — в секрет.
 
 ---
 
-## 🏭 Production Deployment (VPS reg.ru)
+## 🏭 Production (VPS reg.ru, без Docker)
 
-### One-time VPS Setup
 ```bash
-# 1. Install Docker + Compose
-curl -fsSL https://get.docker.com | sh
-apt-get install docker-compose-plugin
-
-# 2. Clone repo
-git clone https://github.com/YOUR/REPO.git /opt/electromontage
-cd /opt/electromontage
-
-# 3. Configure backend env
+# 1. Код
+git clone https://github.com/morevo/electro-montage.git ~/apps/electromontage
+cd ~/apps/electromontage
 cp backend/.env.production.example backend/.env
-nano backend/.env  # Fill all secrets!
+nano backend/.env          # DATABASE_URL, JWT_*, FRONTEND_URL, SEED_*
 
-# 4. First launch
-docker compose -f backend/docker-compose.prod.yml up -d
+# 2. Сборка и запуск API
+cd backend
+npm ci && npx prisma generate && npx prisma db push --skip-generate
+npm run build && bash scripts/server-start.sh
+
+# 3. nginx (нужен root)
+sudo cp ../deploy/nginx.conf /etc/nginx/sites-available/abcn77.ru
+sudo ln -s /etc/nginx/sites-available/abcn77.ru /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
-### Backend Production Compose (`backend/docker-compose.prod.yml`)
-- PostgreSQL 15 + persistent volume
-- Backend (NestJS) on port 3001
-- Volumes for DB + uploads
-- Healthchecks + restart policies
-- Optional: nginx for SSL/termination
-
-### Frontend Production
-- Build: `npm run build` → `dist/`
-- Deploy via FTP to `/public_html` (or `/www`)
-- Nginx config: SPA fallback + `/api/*` proxy to backend:3001
-- SSL via Let's Encrypt (certbot) or reg.ru panel
+- API слушает `127.0.0.1:3001`, наружу отдаёт nginx (`/api/`, `/uploads/`).
+- Статика: `frontend/dist` → `/var/www/abcn77.ru`.
+- Автозапуск с `systemd` (если есть root) — unit в `STEP_BY_STEP_GUIDE.md` §4.6.
+- HTTPS: `sudo certbot --nginx -d abcn77.ru -d www.abcn77.ru`.
 
 ### Environment Variables (Production)
-Copy `backend/.env.production.example` → `.env` and fill:
-```bash
-POSTGRES_PASSWORD=secure_password
+```env
+DATABASE_URL="mysql://electromontage:пароль@127.0.0.1:3306/electromontage"
 JWT_ACCESS_SECRET=32+_char_base64
 JWT_REFRESH_SECRET=32+_char_base64
 JWT_ACCESS_TTL=15m
 JWT_REFRESH_TTL=7d
 PORT=3001
 NODE_ENV=production
-FRONTEND_URL=https://your-domain.ru
+FRONTEND_URL=https://abcn77.ru
+UPLOAD_DIR=./uploads
+SEED_ADMIN_LOGIN=логин_без_@
+SEED_ADMIN_PASSWORD=пароль_16+
 ```
 
 ---
 
 ## ✅ Local Testing Checklist
 
-### Before Commit
 ```bash
-# Frontend
-cd frontend && npm run build    # No TS errors
-
-# Backend
-cd backend && npm run build     # No TS errors
-cd backend && npm run test      # All tests pass
-cd backend && npm run lint      # No lint errors
+cd frontend && npx tsc --noEmit && npm run build
+cd backend  && npx tsc --noEmit && npm run build
 ```
 
-### Full Stack Local Test
+Полный прогон локально:
+
 ```bash
-# 1. Start everything
-docker-compose up -d
-
-# 2. Verify
-curl http://localhost:5173       # Frontend HTML
-curl http://localhost:3001/api/health  # Backend health (if endpoint exists)
-curl http://localhost:3001/api/categories  # Public API
-
-# 3. Open browser
-# http://localhost:5173 - full site
-# http://localhost:5173/admin/login - admin panel
-
-# 4. Admin login
-# Email: admin@electromontage.ru
-# Pass:  ElectroAdmin2024!
+curl http://localhost:3001/api/public/categories
+# браузер: http://localhost:5173 и http://localhost:5173/admin/login
 ```
 
 ### Admin Panel Test
-1. Login → Categories page → Add category → Drag reorder
-2. Photos page → Upload → Drag reorder → Delete
-3. Verify frontend Portfolio loads from API
+1. Вход (логин, не e-mail) → сразу `Инструкция`
+2. Категории: создать / переименовать / удалить (диалог подтверждения)
+3. Фото: загрузить пачкой, удалить чекбоксами, перетащить порядок
 
 ---
 
 ## 🛠️ Troubleshooting
 
-### Port Conflicts
 ```bash
-# Frontend 5173 busy
-lsof -i :5173
-# Backend 3001 busy
-lsof -i :3001
-# Postgres 5432 busy
-lsof -i :5432
+lsof -i :5173     # frontend
+lsof -i :3001     # backend (или: bash scripts/server-stop.sh)
 ```
 
 ### Database Issues
 ```bash
-cd backend
-npm run prisma:migrate:prod  # Apply pending migrations
-npm run prisma:generate      # Regenerate client
-npm run prisma:studio        # Visual DB access
+npx prisma db push       # привести схему в соответствие
+npx prisma generate      # перегенерировать клиент
+npx prisma studio        # визуальный доступ
+mysql -u electromontage -p electromontage
 ```
 
-### Docker Issues
+### Deploy Issues
 ```bash
-docker-compose down -v       # Clean volumes
-docker system prune -af      # Clean everything
-docker-compose build --no-cache  # Fresh build
-```
-
-### Git / Deploy Issues
-```bash
-# Check workflow status
 gh run list --workflow=deploy.yml
 gh run view --log <run-id>
+# на сервере:
+tail -n 50 ~/apps/electromontage/backend/logs/api.log
 ```
 
 ---
@@ -272,23 +217,26 @@ gh run view --log <run-id>
 
 | File | Purpose |
 |------|---------|
-| `frontend/vite.config.ts` | Vite config, aliases, proxy |
+| `frontend/vite.config.ts` | Vite config, aliases, /api proxy |
 | `frontend/tailwind.config.js` | Tailwind theme, dark mode |
-| `frontend/nginx.conf` | SPA fallback, API proxy, caching |
-| `backend/prisma/schema.prisma` | DB models, enums, relations |
-| `backend/src/main.ts` | App bootstrap, global pipes, CORS |
-| `backend/docker-compose.prod.yml` | Production VPS stack |
-| `.github/workflows/deploy.yml` | CI/CD pipeline |
-| `docker-compose.yml` | Local full stack |
+| `backend/prisma/schema.prisma` | DB models (MySQL), enums, relations |
+| `backend/src/main.ts` | Bootstrap, CORS, static /uploads, Swagger |
+| `deploy/nginx.conf` | Статика + прокси /api и /uploads |
+| `backend/scripts/server-start.sh` | Запуск API без Docker и без root |
+| `.github/workflows/deploy.yml` | CI/CD |
+| `STEP_BY_STEP_GUIDE.md` | Полная инструкция по деплою |
+| `AUTODEPLOY.md` | Автодеплой на VPS: секреты, проверка, откат |
 
 ---
 
 ## 🔑 Default Admin Credentials
+
 ```
-Email:    admin@electromontage.ru
-Password: ElectroAdmin2024!
+Login:    <SEED_ADMIN_LOGIN из backend/.env>
+Password: <SEED_ADMIN_PASSWORD из backend/.env>
 ```
-(Change after first login!)
+
+Пароль в доках и чате не хранится. Сменить: `node scripts/create-admin.js` (обновит пароль).
 
 ---
 
@@ -296,13 +244,10 @@ Password: ElectroAdmin2024!
 
 | Environment | Frontend | Backend | Database |
 |-------------|----------|---------|----------|
-| Local Dev   | `npm run dev` (5173) | `npm run start:dev` (3001) | `docker-compose up postgres` |
-| Docker Local| `docker-compose up` (nginx:80) | `docker-compose up backend` (3001) | `docker-compose up postgres` |
-| Production  | FTP → `/public_html` | VPS Docker (3001) + nginx:80/443 | VPS Docker Postgres |
+| Local Dev   | `npm run dev` (5173) | `npm run start:dev` (3001) | MySQL 8 нативно |
+| Production  | `dist` за nginx (или FTPS) | нода на 127.0.0.1:3001, автодеплой по SSH | MySQL 8 на VPS |
 
 ---
-
-> **Note**: This project uses npm workspaces. Root `package.json` orchestrates `frontend` and `backend` workspaces. Run `npm install` from root once to set up all workspaces.
 
 # context-mode — MANDATORY routing rules
 

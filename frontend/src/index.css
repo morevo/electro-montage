@@ -188,3 +188,39 @@ html.light .electric-bg {
 .swiper-pagination-bullet-active {
   opacity: 1 !important;
 }
+
+/* ─── Переход между страницами админки ───────────────────
+   Список ↔ форма, табы в меню. Тайминги как у страницы услуги:
+   вход 0.5s easeOut, выход 0.3s. Фазы переключает App.tsx. */
+@keyframes admin-page-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes admin-page-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+.admin-page-in  { animation: admin-page-in 0.5s ease-out both; }
+.admin-page-out { animation: admin-page-out 0.3s ease-in both; will-change: opacity, transform; }
+
+/* ─── Панель массового выделения (фото) ──────────────────
+   Плавающая плашка над списком. Фон намеренно непрозрачный: под ней
+   может быть что угодно — фото, карточки, свечение админки, — и
+   полупрозрачная подложка сливалась с содержимым. */
+.admin-bulkbar {
+  background: linear-gradient(180deg, #12233d 0%, #0a1628 100%);
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  box-shadow:
+    0 24px 48px -12px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(245, 158, 11, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(12px);
+}
+
+html.light .admin-bulkbar {
+  background: linear-gradient(180deg, #ffffff 0%, #eef3fd 100%);
+  border-color: rgba(217, 119, 6, 0.55);
+  box-shadow:
+    0 24px 48px -16px rgba(15, 33, 64, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}

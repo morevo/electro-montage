@@ -37,13 +37,12 @@ export class AuthController {
   }
 
   @Post('logout')
-  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth()
-  @ApiCookieAuth('access_token')
+  @ApiCookieAuth('refresh_token')
   @ApiOperation({ summary: 'Выход из системы' })
-  async logout(@CurrentUser('id') userId: string, @Res({ passthrough: true }) res: Response) {
-    return this.authService.logout(userId, res);
+  // Без JwtAuthGuard: выйти можно даже с истёкшим access-токеном
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.authService.logout(req.cookies?.refresh_token, res);
   }
 
   @Post('refresh')
