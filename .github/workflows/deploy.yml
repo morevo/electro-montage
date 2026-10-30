@@ -290,9 +290,9 @@ jobs:
 
             # 5.1 Админ: создаётся/обновляется из секретов, если они заданы
             if [ -n "${{ env.SEED_ADMIN_LOGIN }}" ] && [ -n "${{ env.SEED_ADMIN_PASSWORD }}" ]; then
-              if ! grep -q "^SEED_ADMIN_LOGIN=" backend/.env; then
-                echo "SEED_ADMIN_LOGIN=\"${{ env.SEED_ADMIN_LOGIN }}\"" >> backend/.env
-                echo "SEED_ADMIN_PASSWORD=\"${{ env.SEED_ADMIN_PASSWORD }}\"" >> backend/.env
+              if ! grep -q "^SEED_ADMIN_LOGIN=" .env 2>/dev/null; then
+                echo "SEED_ADMIN_LOGIN=\"${{ env.SEED_ADMIN_LOGIN }}\"" >> .env
+                echo "SEED_ADMIN_PASSWORD=\"${{ env.SEED_ADMIN_PASSWORD }}\"" >> .env
               fi
               node scripts/create-admin.js && echo "✅ админ готов" || echo "⚠️ админ не создан"
             fi
