@@ -1,0 +1,41 @@
+name: Cleanup stray paths
+
+# Разовый служебный workflow: убирает на сервере папки, созданные из
+# Windows-пути (C:/...) при неудачном деплое. Запускается вручную.
+on:
+  workflow_dispatch:
+
+env:
+  REG_RU_SSH_HOST: ${{ secrets.REG_RU_SSH_HOST }}
+  REG_RU_SSH_USER: ${{ secrets.REG_RU_SSH_USER }}
+  REG_RU_SSH_KEY: ${{ secrets.REG_RU_SSH_KEY }}
+  REG_RU_SSH_PORT: ${{ secrets.REG_RU_SSH_PORT || '22' }}
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ env.REG_RU_SSH_HOST }}
+          username: ${{ env.REG_RU_SSH_USER }}
+          key: ${{ env.REG_RU_SSH_KEY }}
+          port: ${{ env.REG_RU_SSH_PORT }}
+          command_timeout: 20m
+          script: |
+            echo "=== HOME ==="; echo "$HOME"
+            echo "=== ДО ОЧИСТКИ ==="; du -sh "$HOME"/* 2>/dev/null | head -20
+            if [ -d "$HOME/C:" ]; then
+              echo "Найдена мусорная папка C: ($(du -sh "$HOME/C:" 2>/dev/null | cut -f1)) — удаляю"
+              rm -rf "$HOME/C:"
+            else
+              echo "Папки C: нет"
+            fi
+            if [ -d "$HOME/var" ]; then
+              echo "Найдена мусорная папка var — удаляю"
+              rm -rf "$HOME/var"
+            else
+              echo "Папки var нет"
+            fi
+            echo "=== ПОСЛЕ ОЧИСТКИ ==="; ls -la "$HOME" | head -20
+            echo "=== САЙТ ==="; ls -la "$HOME/www/abcn77.ru/index.html"
