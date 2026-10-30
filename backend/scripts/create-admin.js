@@ -16,7 +16,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const { PrismaClient } = require('@prisma/client');
 
 const LOGIN_ENV = 'SEED_ADMIN_LOGIN';

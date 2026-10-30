@@ -1,0 +1,52 @@
+name: Cleanup junk dirs on server (one-off)
+
+# Разовый служебный workflow: находит и удаляет мусорные каталоги, появившиеся
+# из windows-путей (например «C:/Users/...»), и печатает итоговое содержимое
+# домашней папки. Запускать вручную. Удаляется из репозитория после уборки.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find and remove junk dirs
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.REG_RU_SSH_HOST }}
+          username: ${{ secrets.REG_RU_SSH_USER }}
+          key: ${{ secrets.REG_RU_SSH_KEY }}
+          port: ${{ secrets.REG_RU_SSH_PORT || '22' }}
+          command_timeout: 10m
+          script: |
+            set -uo pipefail
+
+            echo "=== Домашняя папка: $HOME ==="
+
+            echo "=== 1. Каталоги с именем 'C:' ==="
+            find "$HOME" -maxdepth 8 -type d -name 'C:' -not -path '*/.git/*' 2>/dev/null | while IFS= read -r p; do
+              echo "найден: $p"
+              du -sh "$p" 2>/dev/null || true
+              rm -rf "$p" && echo "  ✅ удалён" || echo "  ❌ не удалось удалить"
+            done
+
+            echo "=== 2. Каталоги с именем 'Users' / 'AppData' в домашней папке ==="
+            find "$HOME" -maxdepth 8 -type d \( -name 'Users' -o -name 'AppData' \) -not -path '*/.git/*' 2>/dev/null | while IFS= read -r p; do
+              echo "найден: $p"
+              du -sh "$p" 2>/dev/null || true
+              rm -rf "$p" && echo "  ✅ удалён" || echo "  ❌ не удалось удалить"
+            done
+
+            echo "=== 3. Путь внутри сайта ==="
+            SITE="$HOME/www/abcn77.ru"
+            if [ -d "$SITE" ]; then
+              find "$SITE" -maxdepth 6 -name 'C:*' -o -maxdepth 6 -name 'Users' 2>/dev/null | head -20 || true
+              echo "содержимое сайта:"
+              ls -la "$SITE" | head -20
+            fi
+
+            echo "=== 4. Итог: содержимое домашней папки ==="
+            ls -la "$HOME"
+            echo "=== занято ==="
+            du -sh "$HOME" 2>/dev/null || true
