@@ -20,6 +20,26 @@ PORT="${PORT:-3001}"
 
 mkdir -p "$APP_DIR/.run" "$APP_DIR/logs"
 
+# Node на хостинге по умолчанию старый (v10), поэтому ищем современный:
+# сначала свой в $HOME/runtime, затем обычный node, если ему ≥ 18.
+pick_node() {
+  for cand in "$HOME"/runtime/node-*/bin/node; do
+    [ -x "$cand" ] && { echo "$cand"; return; }
+  done
+  if command -v node >/dev/null 2>&1; then
+    major=$(node -v 2>/dev/null | sed 's/^v([0-9]*).*//')
+    [ "${major:-0}" -ge 18 ] 2>/dev/null && { command -v node; return; }
+  fi
+  echo ""
+}
+NODE_BIN="$(pick_node)"
+if [ -z "$NODE_BIN" ]; then
+  echo "❌ Не найден Node 18+ — запустите деплой, он поставит Node в /c/Users/satan/runtime"
+  exit 1
+fi
+export PATH="$(dirname "$NODE_BIN"):$PATH"
+echo "▶ Node: $("$NODE_BIN" -v)"
+
 stop_running() {
   if [ -f "$PID_FILE" ]; then
     local pid
@@ -84,7 +104,7 @@ if port_busy; then
 fi
 
 # nohup + redirect: процесс переживает выход из SSH-сессии
-nohup node dist/main.js >> "$LOG_FILE" 2>&1 &
+nohup "$NODE_BIN" dist/main.js >> "$LOG_FILE" 2>&1 &
 echo $! > "$PID_FILE"
 
 echo "▶ API запущен, PID $(cat "$PID_FILE"), лог: $LOG_FILE"

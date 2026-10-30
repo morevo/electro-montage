@@ -1,0 +1,43 @@
+name: Probe php and rewrite support (one-off)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PHP and rewrite routing
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.REG_RU_SSH_HOST }}
+          username: ${{ secrets.REG_RU_SSH_USER }}
+          key: ${{ secrets.REG_RU_SSH_KEY }}
+          port: ${{ secrets.REG_RU_SSH_PORT || '22' }}
+          command_timeout: 8m
+          script: |
+            set -uo pipefail
+            SITE="$HOME/www/abcn77.ru"
+
+            echo "=== PHP ==="
+            ls -1 "$HOME/php-bin" 2>/dev/null | head -5
+            "$HOME/php-bin/php" -v 2>/dev/null | head -2 || php -v 2>/dev/null | head -2 || echo "php в PATH нет"
+            "$HOME/php-bin/php" -m 2>/dev/null | grep -iE "^(curl|json|openssl)$" || true
+
+            echo "=== PHP-файл в docroot ==="
+            printf '%s' '<?php echo "PHPOK " . PHP_VERSION . " curl=" . (function_exists("curl_init") ? "yes" : "no");' > "$SITE/probe.php"
+            sleep 1
+            CODE=$(curl -s -o /tmp/probe.out -w "%{http_code}" https://abcn77.ru/probe.php || echo ERR)
+            echo "  probe.php -> $CODE"; echo -n "  тело: "; head -c 120 /tmp/probe.out; echo
+
+            echo "=== rewrite на файл через .htaccess ==="
+            cp "$SITE/.htaccess" "$SITE/.htaccess.bak"
+            sed -i '0,/RewriteEngine On/s//RewriteEngine On\nRewriteRule ^api-probe$ \/probe.php [L]/' "$SITE/.htaccess"
+            sleep 1
+            CODE2=$(curl -s -o /tmp/probe2.out -w "%{http_code}" https://abcn77.ru/api-probe || echo ERR)
+            echo "  /api-probe -> $CODE2"; echo -n "  тело: "; head -c 120 /tmp/probe2.out; echo
+
+            echo "=== чистка ==="
+            mv "$SITE/.htaccess.bak" "$SITE/.htaccess"
+            rm -f "$SITE/probe.php"
+            curl -s -o /dev/null -w "  сайт: %{http_code}\n" https://abcn77.ru/ || true
