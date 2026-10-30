@@ -297,10 +297,11 @@ jobs:
 
             # 5.1 Админ: создаётся/обновляется из секретов, если они заданы
             if [ -n "${{ env.SEED_ADMIN_LOGIN }}" ] && [ -n "${{ env.SEED_ADMIN_PASSWORD }}" ]; then
-              if ! grep -q "^SEED_ADMIN_LOGIN=" .env 2>/dev/null; then
-                echo "SEED_ADMIN_LOGIN=\"${{ env.SEED_ADMIN_LOGIN }}\"" >> .env
-                echo "SEED_ADMIN_PASSWORD=\"${{ env.SEED_ADMIN_PASSWORD }}\"" >> .env
-              fi
+              # Значения из секретов всегда перекрывают то, что лежит в .env:
+              # иначе старый/короткий пароль остаётся и админ не создаётся.
+              sed -i '/^SEED_ADMIN_LOGIN=/d; /^SEED_ADMIN_PASSWORD=/d' .env
+              echo "SEED_ADMIN_LOGIN=\"${{ env.SEED_ADMIN_LOGIN }}\"" >> .env
+              echo "SEED_ADMIN_PASSWORD=\"${{ env.SEED_ADMIN_PASSWORD }}\"" >> .env
               node scripts/create-admin.js && echo "✅ админ готов" || echo "⚠️ админ не создан"
             fi
 
