@@ -101,6 +101,16 @@ jobs:
             "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}:${REG_RU_FRONTEND_PATH}/"
           echo "✅ Статика выложена в ${REG_RU_FRONTEND_PATH} на VPS"
 
+      - name: Verify deployed files
+        if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
+        run: |
+          ssh -p "${REG_RU_SSH_PORT:-22}" "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}" "
+            echo \"--- HOME ---\"; echo $HOME
+            echo \"--- target ---\"; ls -la '${REG_RU_FRONTEND_PATH}' | head -20
+            echo \"--- index ref ---\"; grep -oE 'assets/index-[A-Za-z0-9_-]+.(js|css)' '${REG_RU_FRONTEND_PATH}/index.html'
+            echo \"--- nginx root ---\"; grep -rhoE 'root [^;]+' /etc/nginx/sites-enabled/ 2>/dev/null | head -3
+          "
+
       # ── Вариант B: FTPS на shared-хостинг (только если режим ftp) ──
       - name: Deploy to reg.ru via FTP
         if: env.REG_RU_HOST != '' && (env.REG_RU_FRONTEND_MODE == 'ftp' || env.REG_RU_SSH_HOST == '')
