@@ -7,36 +7,52 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect site config and API
+      - name: Inspect backend and test API proxy
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.REG_RU_SSH_HOST }}
           username: ${{ secrets.REG_RU_SSH_USER }}
           key: ${{ secrets.REG_RU_SSH_KEY }}
           port: ${{ secrets.REG_RU_SSH_PORT || '22' }}
-          command_timeout: 5m
+          command_timeout: 8m
           script: |
             set -uo pipefail
             SITE="$HOME/www/abcn77.ru"
+            APP="$HOME/apps/electromontage/backend"
 
-            echo "=== .htaccess ==="
-            if [ -f "$SITE/.htaccess" ]; then cat "$SITE/.htaccess"; else echo "нет .htaccess"; fi
+            echo "=== 1. Лог API (хвост) ==="
+            tail -40 "$APP/logs/api.log" 2>/dev/null || echo "лога нет"
 
-            echo "=== backend напрямую (:3001) ==="
-            curl -s -o /dev/null -w "  /api/health -> %{http_code}\n" http://127.0.0.1:3001/api/health || true
-            curl -s -o /dev/null -w "  /api/public/categories -> %{http_code}\n" http://127.0.0.1:3001/api/public/categories || true
-            echo "  тело /api/public/categories:"
-            curl -s http://127.0.0.1:3001/api/public/categories | head -c 200 || true
-            echo
+            echo "=== 2. Порт и процессы ==="
+            ss -ltnp 2>/dev/null | grep 3001 || echo "  3001 свободен"
+            ps aux | grep -E "dist/main" | grep -v grep || echo "  node не запущен"
 
-            echo "=== через домен ==="
-            curl -s -o /dev/null -w "  https /api/health -> %{http_code}\n" https://abcn77.ru/api/health || true
-            curl -s -o /dev/null -w "  https /api/public/categories -> %{http_code}\n" https://abcn77.ru/api/public/categories || true
-            echo "  заголовки ответа:"
-            curl -sI https://abcn77.ru/api/health | head -8 || true
+            echo "=== 3. Перезапуск API ==="
+            cd "$APP" && bash scripts/server-start.sh 2>&1 | tail -10 || echo "  start упал"
+            sleep 3
+            ss -ltnp 2>/dev/null | grep 3001 || echo "  порт не слушается"
+            curl -s -o /dev/null -w "  direct /api/health -> %{http_code}\n" http://127.0.0.1:3001/api/health || true
+            echo "  лог после перезапуска:"
+            tail -15 "$APP/logs/api.log" 2>/dev/null || true
 
-            echo "=== чем отдаётся сайт ==="
-            curl -sI https://abcn77.ru/ | head -6 || true
-
-            echo "=== процессы node ==="
-            ps -u "$(id -u)" -o pid,args | grep -E "dist/main" | grep -v grep || echo "нет"
+            echo "=== 4. Тест проксирования /api через .htaccess ==="
+            cp "$SITE/.htaccess" "$SITE/.htaccess.bak"
+            if ! grep -q "3001" "$SITE/.htaccess"; then
+              sed -i '0,/RewriteEngine On/s//RewriteEngine On\nRewriteRule ^api\/(.*)$ http:\/\/127.0.0.1:3001\/api\/$1 [P,L]/' "$SITE/.htaccess"
+              echo "  правило добавлено"
+            else
+              echo "  правило уже есть"
+            fi
+            sleep 2
+            CODE=$(curl -s -o /tmp/api.out -w "%{http_code}" https://abcn77.ru/api/health || echo ERR)
+            CT=$(curl -sI https://abcn77.ru/api/health 2>/dev/null | grep -i "^content-type" | tr -d '\r')
+            echo "  status=$CODE  $CT"
+            echo -n "  тело: "; head -c 200 /tmp/api.out 2>/dev/null; echo
+            if [ "$CODE" = "200" ] && echo "$CT" | grep -qi json; then
+              echo "  ✅ проксирование работает"
+              rm -f "$SITE/.htaccess.bak"
+            else
+              echo "  ❌ проксирование не заработало — откатываю .htaccess"
+              mv "$SITE/.htaccess.bak" "$SITE/.htaccess"
+              curl -s -o /dev/null -w "  сайт после отката: %{http_code}\n" https://abcn77.ru/ || true
+            fi
