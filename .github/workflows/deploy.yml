@@ -255,12 +255,20 @@ jobs:
             # 3. Зависимости и Prisma Client (MySQL)
             cd backend
             mkdir -p uploads/portfolio
-            npm ci --no-audit --no-fund
-            npx prisma generate
+            # На хостинге в окружении бывает NODE_ENV=production, и тогда npm
+            # ставит только production-зависимости — prisma и nest cli (dev) не встают.
+            npm ci --include=dev --no-audit --no-fund
+            PRISMA=./node_modules/.bin/prisma
+            if [ ! -x "$PRISMA" ]; then
+              echo "❌ prisma CLI не установился — dev-зависимости не встали"
+              ls node_modules/.bin 2>/dev/null | head -10 || true
+              exit 1
+            fi
+            "$PRISMA" generate
 
             # 4. Схема БД. Миграций в проекте нет — используем db push.
             #    DATABASE_URL берётся из backend/.env (prisma читает его сам).
-            npx prisma db push --skip-generate
+            "$PRISMA" db push --skip-generate
 
             # 5. Сборка
             npm run build
