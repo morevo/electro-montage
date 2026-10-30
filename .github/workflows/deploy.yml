@@ -26,6 +26,9 @@ env:
   REG_RU_FRONTEND_MODE: ${{ secrets.REG_RU_FRONTEND_MODE }}
   # Строка подключения к MySQL — из неё создаётся backend/.env при первом деплое.
   PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+  # Админ создаётся автоматически на первом деплое, если заданы эти секреты.
+  SEED_ADMIN_LOGIN: ${{ secrets.SEED_ADMIN_LOGIN }}
+  SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
   # ── Backend (SSH на VPS) ──
   REG_RU_SSH_HOST: ${{ secrets.REG_RU_SSH_HOST }}
   REG_RU_SSH_USER: ${{ secrets.REG_RU_SSH_USER }}
@@ -240,6 +243,15 @@ jobs:
 
             # 5. Сборка
             npm run build
+
+            # 5.1 Админ: создаётся/обновляется из секретов, если они заданы
+            if [ -n "${{ env.SEED_ADMIN_LOGIN }}" ] && [ -n "${{ env.SEED_ADMIN_PASSWORD }}" ]; then
+              if ! grep -q "^SEED_ADMIN_LOGIN=" backend/.env; then
+                echo "SEED_ADMIN_LOGIN=\"${{ env.SEED_ADMIN_LOGIN }}\"" >> backend/.env
+                echo "SEED_ADMIN_PASSWORD=\"${{ env.SEED_ADMIN_PASSWORD }}\"" >> backend/.env
+              fi
+              node scripts/create-admin.js && echo "✅ админ готов" || echo "⚠️ админ не создан"
+            fi
 
             # 6. Перезапуск без Docker и без root: PID-файл + health-check внутри
             chmod +x scripts/server-start.sh scripts/server-stop.sh
