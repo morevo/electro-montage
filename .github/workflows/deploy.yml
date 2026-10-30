@@ -59,6 +59,19 @@ jobs:
         run: npm run build
 
       # ── Вариант A (по умолчанию): статика прямо на VPS, nginx отдаёт папку ──
+      - name: Check SSH secrets
+        if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
+        run: |
+          missing=""
+          [ -n "$REG_RU_SSH_USER" ]     || missing="$missing REG_RU_SSH_USER"
+          [ -n "$REG_RU_SSH_KEY" ]      || missing="$missing REG_RU_SSH_KEY"
+          [ -n "$REG_RU_FRONTEND_PATH" ] || missing="$missing REG_RU_FRONTEND_PATH"
+          if [ -n "$missing" ]; then
+            echo "❌ Не заданы секреты:$missing"
+            echo "   Settings → Secrets and variables → Actions → New repository secret"
+            exit 1
+          fi
+
       - name: Setup SSH agent for VPS
         if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
         uses: webfactory/ssh-agent@v0.9.0
@@ -105,6 +118,18 @@ jobs:
   deploy-backend:
     runs-on: ubuntu-latest
     steps:
+      - name: Check SSH secrets
+        if: env.REG_RU_SSH_HOST != ''
+        run: |
+          missing=""
+          [ -n "$REG_RU_SSH_USER" ] || missing="$missing REG_RU_SSH_USER"
+          [ -n "$REG_RU_SSH_KEY" ]  || missing="$missing REG_RU_SSH_KEY"
+          if [ -n "$missing" ]; then
+            echo "❌ Не заданы секреты:$missing"
+            echo "   Settings → Secrets and variables → Actions → New repository secret"
+            exit 1
+          fi
+
       - name: Deploy backend on VPS via SSH
         if: env.REG_RU_SSH_HOST != ''
         uses: appleboy/ssh-action@v1
@@ -113,7 +138,7 @@ jobs:
           username: ${{ env.REG_RU_SSH_USER }}
           key: ${{ env.REG_RU_SSH_KEY }}
           port: ${{ env.REG_RU_SSH_PORT }}
-          script_stop: true
+          command_timeout: 20m
           script: |
             set -euo pipefail
 
