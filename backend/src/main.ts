@@ -48,7 +48,16 @@ async function bootstrap() {
   // PORT=0 или пустое значение встречаются в окружениях (например, CI) —
   // тогда слушаем стандартный 3001, иначе приложение встаёт на случайный порт.
   const port = Number(configService.get('PORT')) || 3001;
-  await app.listen(port);
+  const httpServer = await app.listen(port);
+
+  // Воркэраунд для бага в nginx-конфиге на проде (мы не можем его поправить —
+  // nginx управляется хостинг-провайдером, клиенту недоступен): он шлёт
+  // "Connection: upgrade" на ВСЕ запросы к апстриму, из-за чего nginx иногда
+  // переиспользует keep-alive-соединение между несвязанными запросами и
+  // multipart-поля (например categoryId) долетают повреждёнными. Если Node
+  // сам не поддерживает keep-alive, nginx не сможет такое соединение
+  // переиспользовать — каждый запрос идёт по новому TCP-соединению.
+  httpServer.keepAliveTimeout = 0;
   console.log(`🚀 Server running on http://localhost:${port}`);
   console.log(`📚 Swagger docs: http://localhost:${port}/api/docs`);
 }
