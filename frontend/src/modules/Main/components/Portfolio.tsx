@@ -43,6 +43,11 @@ export default function Portfolio() {
   const [openCategory, setOpenCategory] = useState<string | null>(null)
   const [lightboxIndex, setLightboxIndex] = useState(-1)
   const [broken, setBroken] = useState<Record<string, boolean>>({})
+  // Плавное появление фото в сетке категории — без этого картинка резко
+  // "выскакивает" поверх фона карточки, когда догружается.
+  const [loadedPhotos, setLoadedPhotos] = useState<Record<string, boolean>>({})
+  // То же для обложки категории (верхний слой стопки из трёх фото).
+  const [loadedCovers, setLoadedCovers] = useState<Record<string, boolean>>({})
   const ref = useRef<HTMLElement>(null)
   const inView = useInView(ref, { once: true, margin: '-100px' })
 
@@ -196,9 +201,19 @@ export default function Portfolio() {
                     style={{ backgroundImage: `url(${mid.url})` }}
                   />
                   <div
-                    className="absolute inset-0 h-full rounded-2xl bg-surface bg-contain bg-no-repeat bg-center border border-white/10 overflow-hidden transition-transform duration-300 group-hover:-translate-y-1 group-hover:shadow-xl group-hover:shadow-black/30"
+                    className={`absolute inset-0 h-full rounded-2xl bg-surface bg-contain bg-no-repeat bg-center border border-white/10 overflow-hidden transition-[opacity,transform] duration-300 group-hover:-translate-y-1 group-hover:shadow-xl group-hover:shadow-black/30 ${
+                      loadedCovers[folder.category] ? 'opacity-100' : 'opacity-0'
+                    }`}
                     style={{ backgroundImage: `url(${top.url})` }}
                   >
+                    {/* Невидимый <img> только чтобы поймать onLoad для фонового bg-image */}
+                    <img
+                      src={top.url}
+                      alt=""
+                      aria-hidden
+                      className="hidden"
+                      onLoad={() => setLoadedCovers((prev) => ({ ...prev, [folder.category]: true }))}
+                    />
                     <div className="absolute inset-0 bg-gradient-to-t from-primary/70 via-primary/10 to-transparent" />
                     <div className="absolute bottom-2 left-2 flex items-center gap-1.5 text-white/80">
                       <HiOutlineFolder className="text-xl" />
@@ -268,7 +283,10 @@ export default function Portfolio() {
                         alt={project.title}
                         loading="lazy"
                         onError={() => setBroken((prev) => ({ ...prev, [project.id]: true }))}
-                        className="absolute inset-0 w-full h-full object-contain transition-transform duration-300 group-hover/photo:scale-105"
+                        onLoad={() => setLoadedPhotos((prev) => ({ ...prev, [project.id]: true }))}
+                        className={`absolute inset-0 w-full h-full object-contain transition-[opacity,transform] duration-300 group-hover/photo:scale-105 ${
+                          loadedPhotos[project.id] ? 'opacity-100' : 'opacity-0'
+                        }`}
                       />
                     )}
                     <span className="absolute bottom-0 inset-x-0 px-2 py-1 text-[11px] text-white/90 bg-primary/70 truncate opacity-0 group-hover/photo:opacity-100 transition-opacity">

@@ -10,6 +10,7 @@ import {
   HiOutlineMenuAlt2,
   HiOutlineX,
   HiOutlineUserGroup,
+  HiOutlineExternalLink,
 } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import { useAuth } from '../hooks/useAuth';
@@ -183,7 +184,21 @@ function AdminSidebar({
         {/* Навигация: рабочие разделы сверху, инструкция — внизу, над «Выйти» */}
         <nav className={`flex-1 flex flex-col p-3 ${collapsed ? 'lg:px-2' : ''}`}>
           <div className="space-y-2">{navItems.map(renderNavItem)}</div>
-          <div className="mt-auto pt-3 space-y-2">{renderNavItem(guideItem)}</div>
+          <div className="mt-auto pt-3 space-y-2">
+            {renderNavItem(guideItem)}
+            <a
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              title={collapsed ? 'На главную' : undefined}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all
+                          text-on-muted border border-transparent hover:text-accent hover:bg-accent/[0.06]
+                          ${collapsed ? 'lg:justify-center lg:px-2' : ''}`}
+            >
+              <HiOutlineExternalLink className="text-xl flex-shrink-0" />
+              <span className={collapsed ? 'lg:hidden' : ''}>На главную</span>
+            </a>
+          </div>
         </nav>
 
         {/* Низ: выход */}

@@ -75,6 +75,9 @@ function PhotoCard({
   // Карточка целиком кликабельна, а её кнопки гасят всплытие — поэтому
   // «скачать», «редактировать» и «удалить» срабатывают отдельно, не открывая фото.
   const openCard = !overlay && onOpen ? () => onOpen(photo) : undefined;
+  // Картинка подгружается не мгновенно — без fade-in она просто "выскакивает"
+  // поверх скелетона/фона, отсюда ощущение рывка.
+  const [imgLoaded, setImgLoaded] = useState(false);
 
   return (
     <div
@@ -92,7 +95,13 @@ function PhotoCard({
     >
       {/* Превью */}
       <div className="relative aspect-[4/3] bg-primary overflow-hidden">
-        <img src={url} alt={photo.title} className="w-full h-full object-cover" loading="lazy" />
+        <img
+          src={url}
+          alt={photo.title}
+          loading="lazy"
+          onLoad={() => setImgLoaded(true)}
+          className={`w-full h-full object-cover transition-opacity duration-300 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
+        />
 
         {/* Ручка перетаскивания — та же, что в категориях */}
         {handle ?? <DragHandle className="absolute top-2 left-2 z-10" tabIndex={-1} aria-hidden />}
