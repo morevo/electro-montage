@@ -363,28 +363,6 @@ jobs:
             chmod +x scripts/server-start.sh scripts/server-stop.sh scripts/keep-alive.sh scripts/supervise.sh
             bash scripts/server-start.sh
 
-            # TEMP DEBUG — найти реальный nginx-конфиг домена и проверить права на
-            # правку/reload без полного root. Только чтение/диагностика, ничего не
-            # меняет. Убрать следующим коммитом.
-            echo "=== TEMP DEBUG nginx ==="
-            for f in /etc/nginx/sites-enabled/*"${{ env.REG_RU_DOMAIN }}"* \
-                     /etc/nginx/vhosts*/*"${{ env.REG_RU_DOMAIN }}"* \
-                     /usr/local/mgr5/etc/nginx*/*"${{ env.REG_RU_DOMAIN }}"* \
-                     /etc/nginx/conf.d/*"${{ env.REG_RU_DOMAIN }}"*; do
-              [ -e "$f" ] || continue
-              echo "FOUND: $f"
-              ls -la "$f" 2>&1
-              [ -w "$f" ] && echo "  writable: YES" || echo "  writable: NO"
-            done
-            echo "--- whoami / groups ---"
-            whoami
-            id
-            echo "--- sudo -n -l (non-interactive, no prompt) ---"
-            sudo -n -l 2>&1 || echo "sudo -n failed (expected if no NOPASSWD rules)"
-            echo "--- nginx master process owner ---"
-            ps -eo user,cmd 2>/dev/null | grep "nginx: master" || echo "n/a"
-            echo "=== END TEMP DEBUG nginx ==="
-
             # 7. Watchdog в cron: хостинг убивает процессы после закрытия
             #    SSH-сессии, а запущенное из cron — живёт.
             CRON_LINE="* * * * * $APP_PATH/scripts/keep-alive.sh >/dev/null 2>&1"
