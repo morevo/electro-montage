@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { motion, useInView, AnimatePresence } from 'framer-motion'
 import { HiOutlineFolder, HiOutlinePhotograph, HiOutlineDownload, HiX, HiOutlineRefresh } from 'react-icons/hi'
 import Lightbox from 'yet-another-react-lightbox'
@@ -8,9 +8,9 @@ import Download from 'yet-another-react-lightbox/plugins/download'
 import type { Slide } from 'yet-another-react-lightbox'
 import 'yet-another-react-lightbox/styles.css'
 import 'yet-another-react-lightbox/plugins/captions.css'
-import { publicApi } from '../../Shared/api'
+import { usePublicCategories } from '../../Shared/hooks/useApi'
 import { Skeleton, PlaceholderCard } from '../../Shared/components/Skeleton'
-import type { Category as AdminCategory, Photo as AdminPhoto } from '../../Shared/types'
+import type { Category as AdminCategory } from '../../Shared/types'
 
 interface Category {
   id: string
@@ -40,49 +40,37 @@ interface Folder {
 }
 
 export default function Portfolio() {
-  const [categories, setCategories] = useState<Category[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [openCategory, setOpenCategory] = useState<string | null>(null)
   const [lightboxIndex, setLightboxIndex] = useState(-1)
-  const [reloadKey, setReloadKey] = useState(0)
   const [broken, setBroken] = useState<Record<string, boolean>>({})
   const ref = useRef<HTMLElement>(null)
   const inView = useInView(ref, { once: true, margin: '-100px' })
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        setLoading(true)
-        const data = await publicApi.getCategories()
-        // Защита от не-массивов: иначе на странице падал сырой TypeError.
-        if (!Array.isArray(data)) {
-          throw new Error('Некорректный ответ API')
+  // TanStack Query вместо ручного useEffect+fetch: один и тот же queryClient
+  // (см. providers/QueryProvider.tsx) используется и здесь, и в админке —
+  // поэтому сохранение/удаление категории или фото в админке инвалидирует
+  // этот запрос через refreshAdminData() и список обновляется сам, без
+  // перезагрузки страницы (актуально, когда админка открыта в той же вкладке).
+  const { data, isLoading: loading, isError, refetch } = usePublicCategories()
+
+  const categories: Category[] = useMemo(() => {
+    // Защита от не-массивов: иначе на странице падал сырой TypeError.
+    if (!Array.isArray(data)) return []
+    return data.map((cat: AdminCategory) => ({
+      ...cat,
+      photos: (cat.photos ?? []).map((p) => {
+        const { category: adminCategory, ...rest } = p
+        return {
+          ...rest,
+          url: p.url || `/uploads/portfolio/${p.filename}`,
+          category: adminCategory?.name,
+          categoryObj: adminCategory,
         }
-        // Преобразуем админ-категории в локальные с обязательным photos
-        const transformed: Category[] = data.map(cat => ({
-          ...cat,
-          photos: (cat.photos ?? []).map(p => {
-            const { category: adminCategory, ...rest } = p
-            return {
-              ...rest,
-              url: p.url || `/uploads/portfolio/${p.filename}`,
-              category: adminCategory?.name,
-              categoryObj: adminCategory,
-            }
-          }),
-        }))
-        setCategories(transformed)
-        setError(null)
-      } catch {
-        // Технические подробности остаются в консоли, пользователь видит заглушку.
-        setError('portfolio-unavailable')
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchData()
-  }, [reloadKey])
+      }),
+    }))
+  }, [data])
+
+  const error = isError ? 'portfolio-unavailable' : null
 
   const folders: Folder[] = categories
     .map(cat => ({
@@ -156,7 +144,7 @@ export default function Portfolio() {
             action={
               <button
                 type="button"
-                onClick={() => setReloadKey((k) => k + 1)}
+                onClick={() => refetch()}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-accent/15 border border-accent/30 text-accent text-sm font-semibold hover:bg-accent/25 transition-colors"
               >
                 <HiOutlineRefresh /> Обновить

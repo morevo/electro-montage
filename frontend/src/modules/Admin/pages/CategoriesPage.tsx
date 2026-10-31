@@ -206,6 +206,9 @@ export default function CategoriesPage() {
     setSavingOrder(true);
     try {
       await reorderCategories(ordered.map((cat, index) => ({ id: cat.id, sortOrder: index })));
+      // Порядок категорий виден и на публичном сайте — инвалидируем его кэш так же,
+      // как после создания/правки/удаления.
+      refreshAdminData();
       toast.success('Порядок категорий обновлён');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Не удалось изменить порядок');

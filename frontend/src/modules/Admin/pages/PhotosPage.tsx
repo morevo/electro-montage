@@ -303,6 +303,9 @@ export default function PhotosPage() {
 
     try {
       await reorderPhotos(categoryFilter, items);
+      // Порядок фото виден и на публичном сайте — инвалидируем его кэш так же,
+      // как после создания/правки/удаления.
+      refreshAdminData();
       toast.success('Порядок фото обновлён');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Не удалось изменить порядок');

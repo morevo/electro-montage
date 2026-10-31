@@ -455,27 +455,29 @@ export default function PhotoEditorPage() {
                     ))}
                   </AnimatePresence>
 
-                  {/* Копия карточки фото: медиа 4:3 и точно такой же подвал
-                      (те же p-2, py-1.5, text-[11px], mt-1). Поэтому плитка
-                      совпадает по высоте с соседним фото и не «прыгает»,
-                      когда переносится на новую строку. */}
+                  {/* Копия карточки фото 1-в-1: верх — aspect-[4/3], как у img,
+                      низ — p-2 с полем (py-1.5, text-[11px]) и подписью (mt-1,
+                      text-[10px]), как у input + formatSize в карточке ниже.
+                      Только одинаковая по структуре разметка даёт одинаковую
+                      высоту — "подогнать" высоту числом нельзя, т.к. реальная
+                      карточка растёт вместе с текстом названия файла. */}
                   <button
                     type="button"
                     onClick={() => inputRef.current?.click()}
-                    className="group self-start flex flex-col items-center rounded-xl overflow-hidden text-center
+                    className="group w-full flex flex-col rounded-xl overflow-hidden text-center
                                border border-dashed border-[var(--color-border)] bg-primary
                                text-on-muted hover:text-accent hover:border-accent/60 hover:bg-accent/[0.06]
                                transition-colors"
                   >
-                    <span className="flex flex-col items-center justify-center gap-1 px-2">
+                    <span className="w-full aspect-[4/3] flex flex-col items-center justify-center gap-1 px-2">
                       <HiOutlineUpload className="text-2xl transition-transform group-hover:-translate-y-0.5" />
                       <span className="text-[11px] font-medium leading-tight">Добавить ещё</span>
                     </span>
-                    <span className="flex flex-col items-center px-2 py-1.5 text-center">
-                      <span className="block text-[11px] font-medium leading-tight truncate">
+                    <span className="p-2">
+                      <span className="flex w-full items-center justify-center px-2 py-1.5 rounded-lg border border-[var(--color-border)] text-[11px] font-medium leading-tight truncate">
                         Ещё {Math.max(0, MAX_FILES - items.length)} из {MAX_FILES}
                       </span>
-                      <span className="block text-[10px] text-on-muted/50 truncate">
+                      <span className="block text-[10px] text-on-muted/50 mt-1 truncate">
                         JPG, PNG, WebP
                       </span>
                     </span>

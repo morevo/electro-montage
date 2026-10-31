@@ -16,7 +16,6 @@ import { Response, Request } from 'express';
 
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
-import { RegisterDto } from './dto/register.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
@@ -33,11 +32,9 @@ const validationPipe = new ValidationPipe({
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post('register')
-  @ApiOperation({ summary: 'Регистрация нового администратора' })
-  async register(@Body() registerDto: RegisterDto, @Res({ passthrough: true }) res: Response) {
-    return this.authService.register(registerDto, res);
-  }
+  // Регистрация нового администратора — через POST /users (только SUPER_ADMIN,
+  // см. UsersController). Публичного /auth/register нет намеренно: иначе
+  // любой посетитель сайта мог бы создать себе учётку администратора.
 
   @Post('login')
   @HttpCode(HttpStatus.OK)

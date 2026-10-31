@@ -2,3 +2,4 @@
 export { authApi } from './authApi';
 export { categoriesApi } from './categoriesApi';
 export { photosApi } from './photosApi';
+export { usersApi } from './usersApi';

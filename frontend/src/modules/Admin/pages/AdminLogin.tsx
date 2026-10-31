@@ -6,7 +6,7 @@ import AuthScreen from '@/modules/Main/components/AuthScreen';
 export default function AdminLogin() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, loading } = useAuth();
+  const { user, loading, login } = useAuth();
 
   // Если пользователь уже авторизован — сразу уводим в админку
   useEffect(() => {

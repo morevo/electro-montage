@@ -41,7 +41,9 @@ async function bootstrap() {
     .addCookieAuth('access_token')
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('docs', app, document);
+  // setGlobalPrefix выше не подхватывается Swagger автоматически — указываем
+  // путь целиком, иначе документация окажется на /docs, а не на /api/docs.
+  SwaggerModule.setup('api/docs', app, document);
 
   // PORT=0 или пустое значение встречаются в окружениях (например, CI) —
   // тогда слушаем стандартный 3001, иначе приложение встаёт на случайный порт.

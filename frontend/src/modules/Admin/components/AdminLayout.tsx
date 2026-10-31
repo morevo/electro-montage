@@ -9,6 +9,7 @@ import {
   HiOutlineMenu,
   HiOutlineMenuAlt2,
   HiOutlineX,
+  HiOutlineUserGroup,
 } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import { useAuth } from '../hooks/useAuth';
@@ -93,19 +94,23 @@ function AdminParticles() {
 function AdminSidebar({
   mobileOpen,
   collapsed,
+  showUsers,
   onCloseMobile,
   onLogout,
 }: {
   mobileOpen: boolean;
   collapsed: boolean;
+  showUsers: boolean;
   onCloseMobile: () => void;
   onLogout: () => void;
 }) {
   // Инструкция живёт отдельно: она прижата к низу колонки, прямо над «Выйти»,
-  // а рабочие разделы — сверху.
+  // а рабочие разделы — сверху. «Администраторы» видны только супер-админу —
+  // так же, как бэкенд ограничивает доступ к /api/users одной этой ролью.
   const navItems = [
     { path: '/admin/categories', label: 'Категории', icon: HiOutlineFolder },
     { path: '/admin/photos', label: 'Фото', icon: HiOutlinePhotograph },
+    ...(showUsers ? [{ path: '/admin/users', label: 'Администраторы', icon: HiOutlineUserGroup }] : []),
   ];
   const guideItem = { path: '/admin/guide', label: 'Инструкция', icon: HiOutlineBookOpen };
 
@@ -219,6 +224,9 @@ function AdminHeader({
     if (pathname === '/admin/categories/new') return 'Новая категория';
     if (/^\/admin\/categories\/[^/]+\/edit$/.test(pathname)) return 'Редактирование категории';
     if (pathname.startsWith('/admin/categories')) return 'Управление категориями';
+    if (pathname === '/admin/users/new') return 'Новый администратор';
+    if (/^\/admin\/users\/[^/]+\/edit$/.test(pathname)) return 'Администратор';
+    if (pathname.startsWith('/admin/users')) return 'Администраторы';
     if (pathname.startsWith('/admin/guide')) return 'Инструкция';
     return 'Админка';
   };
@@ -323,7 +331,7 @@ interface AdminLayoutProps {
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
   const location = useLocation();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     return localStorage.getItem(COLLAPSE_KEY) === '1';
@@ -372,6 +380,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       <AdminSidebar
         mobileOpen={sidebarOpen}
         collapsed={collapsed}
+        showUsers={user?.role === 'SUPER_ADMIN'}
         onCloseMobile={() => setSidebarOpen(false)}
         onLogout={() => setConfirmLogout(true)}
       />

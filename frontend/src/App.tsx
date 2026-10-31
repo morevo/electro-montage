@@ -21,6 +21,8 @@ import CategoryEditorPage from '@/modules/Admin/pages/CategoryEditorPage'
 import PhotosPage from '@/modules/Admin/pages/PhotosPage'
 import PhotoEditorPage from '@/modules/Admin/pages/PhotoEditorPage'
 import AdminGuidePage from '@/modules/Admin/pages/AdminGuidePage'
+import UsersPage from '@/modules/Admin/pages/UsersPage'
+import UserEditorPage from '@/modules/Admin/pages/UserEditorPage'
 import { AuthProvider } from '@/modules/Admin/context/AuthContext'
 import { useAuth } from '@/modules/Admin/hooks/useAuth'
 
@@ -153,6 +155,10 @@ function AdminRoutes() {
     return <Navigate to="/admin/login" replace />
   }
 
+  // Раздел «Администраторы» виден и доступен только супер-админу — так же,
+  // как бэкенд ограничивает весь /api/users одной этой ролью.
+  const isSuperAdmin = user.role === 'SUPER_ADMIN'
+
   return (
     <AdminLayout>
       {/* Переход между страницами админки: табы в меню, список → форма фото,
@@ -170,6 +176,13 @@ function AdminRoutes() {
             <Route path="photos/new" element={<PhotoEditorPage />} />
             <Route path="photos/:id/edit" element={<PhotoEditorPage />} />
             <Route path="guide" element={<AdminGuidePage />} />
+            {isSuperAdmin && (
+              <>
+                <Route path="users" element={<UsersPage />} />
+                <Route path="users/new" element={<UserEditorPage />} />
+                <Route path="users/:id/edit" element={<UserEditorPage />} />
+              </>
+            )}
             {/* Абсолютный путь обязателен: относительный Navigate внутри
                 Routes с отложенным location приклеивался к текущему URL
                 и уводил в /admin/guide/guide/guide… */}

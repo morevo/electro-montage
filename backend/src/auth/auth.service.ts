@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  ConflictException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { ConfigService } from '@nestjs/config';
@@ -13,7 +8,6 @@ import { createHash, randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
-import { RegisterDto } from './dto/register.dto';
 import { TokenPayload } from './interfaces/token-payload.interface';
 
 @Injectable()
@@ -26,16 +20,6 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {}
-
-  async register(registerDto: RegisterDto, res: Response) {
-    const existingUser = await this.usersService.findByLogin(registerDto.login);
-    if (existingUser) {
-      throw new ConflictException('Пользователь с таким логином уже существует');
-    }
-
-    const user = await this.usersService.create(registerDto);
-    return this.generateTokensAndSetCookies(user, res);
-  }
 
   async login(loginDto: LoginDto, res: Response) {
     const user = await this.usersService.findByLogin(loginDto.login);

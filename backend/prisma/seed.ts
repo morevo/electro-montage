@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import * as bcrypt from 'bcryptjs';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -103,7 +104,18 @@ async function main() {
 
   console.log('🌱 Starting seed...');
 
-  const prisma = new PrismaClient();
+  const dbUrl = new URL(process.env.DATABASE_URL ?? '');
+  const prisma = new PrismaClient({
+    adapter: new PrismaMariaDb({
+      host: dbUrl.hostname,
+      port: Number(dbUrl.port || 3306),
+      user: decodeURIComponent(dbUrl.username),
+      password: decodeURIComponent(dbUrl.password),
+      database: dbUrl.pathname.replace(/^\//, ''),
+      connectionLimit: 5,
+      ssl: false,
+    }),
+  });
 
   try {
     // ── Администратор ──

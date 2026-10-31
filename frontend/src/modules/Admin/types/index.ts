@@ -1,8 +1,11 @@
+export type UserRole = 'ADMIN' | 'SUPER_ADMIN';
+
 export interface User {
   id: string;
   login: string;
   name?: string;
-  role: 'ADMIN' | 'SUPER_ADMIN';
+  role: UserRole;
+  createdAt?: string;
 }
 
 export interface Category {
