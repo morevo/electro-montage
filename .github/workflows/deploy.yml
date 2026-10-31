@@ -208,6 +208,19 @@ jobs:
             "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}:${{ steps.backend.outputs.dir }}/"
           echo "✅ Билд выложен в ${{ steps.backend.outputs.dir }}"
 
+      - name: Upload portfolio seed (images + manifest)
+        if: env.REG_RU_SSH_HOST != ''
+        run: |
+          rsync -az --chmod=D755,F644 \
+            -e "ssh -p ${REG_RU_SSH_PORT:-22}" \
+            ./frontend/src/assets/portfolio/ \
+            "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}:${{ steps.backend.outputs.dir }}/uploads/portfolio/"
+          rsync -az --chmod=F644 \
+            -e "ssh -p ${REG_RU_SSH_PORT:-22}" \
+            ./frontend/src/assets/portfolio-manifest.json \
+            "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}:${{ steps.backend.outputs.dir }}/prisma/portfolio-manifest.json"
+          echo "✅ Изображения и манифест портфолио загружены"
+
       - name: Prepare and restart API on server
         if: env.REG_RU_SSH_HOST != ''
         uses: appleboy/ssh-action@v1
@@ -285,6 +298,9 @@ jobs:
 
             # 4. Схема БД
             ./node_modules/.bin/prisma db push --skip-generate
+
+            # 4.1 Портфолио из манифеста (идемпотентно: повторно ничего не создаёт)
+            node scripts/seed-portfolio.js || echo "⚠️ портфолио не перенесено"
 
             # 5. Админ: значения из секретов всегда перекрывают .env
             if [ -n "${{ env.SEED_ADMIN_LOGIN }}" ] && [ -n "${{ env.SEED_ADMIN_PASSWORD }}" ]; then

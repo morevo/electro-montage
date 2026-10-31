@@ -224,3 +224,50 @@ html.light .admin-bulkbar {
     0 24px 48px -16px rgba(15, 33, 64, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
+
+/* ─── Скелетоны и заглушки ───────────────────────────────
+   Общие «плавные» состояния загрузки: одинаковый блик и та же
+   рамка, что у карточек, — чтобы блоки не прыгали и не мигали. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 45%,
+    rgba(245, 158, 11, 0.1) 55%,
+    transparent 100%
+  );
+  animation: skeleton-shimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes skeleton-shimmer {
+  100% { transform: translateX(100%); }
+}
+html.light .skeleton::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(15, 33, 64, 0.05) 45%,
+    rgba(217, 119, 6, 0.08) 55%,
+    transparent 100%
+  );
+}
+
+/* Заглушка вместо ошибки: спокойная пунктирная рамка в стиле карточек */
+.placeholder-card {
+  border-radius: 1rem;
+  border: 1px dashed var(--color-border);
+  background: var(--color-surface);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation: none; }
+}

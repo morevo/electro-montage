@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, useInView, AnimatePresence } from 'framer-motion'
-import { HiOutlineFolder, HiOutlinePhotograph, HiOutlineDownload, HiX } from 'react-icons/hi'
+import { HiOutlineFolder, HiOutlinePhotograph, HiOutlineDownload, HiX, HiOutlineRefresh } from 'react-icons/hi'
 import Lightbox from 'yet-another-react-lightbox'
 import Zoom from 'yet-another-react-lightbox/plugins/zoom'
 import Captions from 'yet-another-react-lightbox/plugins/captions'
@@ -9,6 +9,7 @@ import type { Slide } from 'yet-another-react-lightbox'
 import 'yet-another-react-lightbox/styles.css'
 import 'yet-another-react-lightbox/plugins/captions.css'
 import { publicApi } from '../../Shared/api'
+import { Skeleton, PlaceholderCard } from '../../Shared/components/Skeleton'
 import type { Category as AdminCategory, Photo as AdminPhoto } from '../../Shared/types'
 
 interface Category {
@@ -44,6 +45,8 @@ export default function Portfolio() {
   const [error, setError] = useState<string | null>(null)
   const [openCategory, setOpenCategory] = useState<string | null>(null)
   const [lightboxIndex, setLightboxIndex] = useState(-1)
+  const [reloadKey, setReloadKey] = useState(0)
+  const [broken, setBroken] = useState<Record<string, boolean>>({})
   const ref = useRef<HTMLElement>(null)
   const inView = useInView(ref, { once: true, margin: '-100px' })
 
@@ -52,6 +55,10 @@ export default function Portfolio() {
       try {
         setLoading(true)
         const data = await publicApi.getCategories()
+        // Защита от не-массивов: иначе на странице падал сырой TypeError.
+        if (!Array.isArray(data)) {
+          throw new Error('Некорректный ответ API')
+        }
         // Преобразуем админ-категории в локальные с обязательным photos
         const transformed: Category[] = data.map(cat => ({
           ...cat,
@@ -67,14 +74,15 @@ export default function Portfolio() {
         }))
         setCategories(transformed)
         setError(null)
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Ошибка загрузки портфолио')
+      } catch {
+        // Технические подробности остаются в консоли, пользователь видит заглушку.
+        setError('portfolio-unavailable')
       } finally {
         setLoading(false)
       }
     }
     fetchData()
-  }, [])
+  }, [reloadKey])
 
   const folders: Folder[] = categories
     .map(cat => ({
@@ -121,8 +129,11 @@ export default function Portfolio() {
                 initial={{ opacity: 0, y: 30 }}
                 animate={inView ? { opacity: 1, y: 0 } : {}}
                 transition={{ duration: 0.5, delay: 0.1 + i * 0.1 }}
-                className="h-44 sm:h-52 bg-surface/50 rounded-2xl animate-pulse"
-              />
+              >
+                <Skeleton className="h-36 sm:h-44 mb-4" />
+                <Skeleton rounded="rounded-md" className="h-4 w-2/3 mb-2" />
+                <Skeleton rounded="rounded-md" className="h-3 w-1/3" />
+              </motion.div>
             ))}
           </div>
         </div>
@@ -133,8 +144,25 @@ export default function Portfolio() {
   if (error) {
     return (
       <section id="portfolio" className="py-6 relative" ref={ref}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center py-12">
-          <p className="text-red-400">{error}</p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <h2 className="section-title">
+            Примеры <span className="text-accent">работ</span>
+          </h2>
+          <PlaceholderCard
+            className="mt-6"
+            icon={<HiOutlinePhotograph />}
+            title="Не удалось загрузить работы"
+            hint="Секунду — попробуем ещё раз. Фотографии никуда не пропали."
+            action={
+              <button
+                type="button"
+                onClick={() => setReloadKey((k) => k + 1)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-accent/15 border border-accent/30 text-accent text-sm font-semibold hover:bg-accent/25 transition-colors"
+              >
+                <HiOutlineRefresh /> Обновить
+              </button>
+            }
+          />
         </div>
       </section>
     )
@@ -241,12 +269,20 @@ export default function Portfolio() {
                     onClick={() => setLightboxIndex(index)}
                     className="relative aspect-[4/3] rounded-lg overflow-hidden cursor-pointer group/photo bg-surface border border-[var(--color-border)] hover:border-accent/40 transition-colors"
                   >
-                    <img
-                      src={project.url}
-                      alt={project.title}
-                      loading="lazy"
-                      className="absolute inset-0 w-full h-full object-contain transition-transform duration-300 group-hover/photo:scale-105"
-                    />
+                    {broken[project.id] ? (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-on-muted">
+                        <HiOutlinePhotograph className="text-2xl opacity-60" />
+                        <span className="text-[11px] px-3 text-center">Фото временно недоступно</span>
+                      </div>
+                    ) : (
+                      <img
+                        src={project.url}
+                        alt={project.title}
+                        loading="lazy"
+                        onError={() => setBroken((prev) => ({ ...prev, [project.id]: true }))}
+                        className="absolute inset-0 w-full h-full object-contain transition-transform duration-300 group-hover/photo:scale-105"
+                      />
+                    )}
                     <span className="absolute bottom-0 inset-x-0 px-2 py-1 text-[11px] text-white/90 bg-primary/70 truncate opacity-0 group-hover/photo:opacity-100 transition-opacity">
                       {project.title}
                     </span>
