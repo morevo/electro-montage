@@ -189,6 +189,15 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -p "${REG_RU_SSH_PORT:-22}" -H "$REG_RU_SSH_HOST" >> ~/.ssh/known_hosts
 
+      - name: Resolve static directory on server
+        id: static
+        if: env.REG_RU_SSH_HOST != ''
+        run: |
+          DIR=$(ssh -p "${REG_RU_SSH_PORT:-22}" "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}" \
+            "D=\"\$HOME/www/${REG_RU_DOMAIN}\"; if [ -d \"\$D\" ]; then readlink -f \"\$D\"; else echo \"\$D\"; fi")
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+          echo "Сайт → $DIR"
+
       - name: Resolve backend directory on server
         id: backend
         if: env.REG_RU_SSH_HOST != ''
