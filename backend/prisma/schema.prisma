@@ -1,5 +1,9 @@
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
+  // Без Rust-движка: запросы компилируются в JS, соединение — через
+  // @prisma/adapter-mariadb. На shared-хостинге встроенный query engine
+  // падал с «PANIC: timer has gone away» и ронял процесс API.
+  engineType = "client"
 }
 
 datasource db {

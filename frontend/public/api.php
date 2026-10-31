@@ -26,7 +26,25 @@ $skipRequest = [
 ];
 
 $headers = [];
-foreach (getallheaders() as $name => $value) {
+// getallheaders() есть только под Apache mod_php; под FPM/CGI её может не быть,
+// и тогда вызов роняет PHP с фатальной ошибкой (500). Собираем заголовки
+// переносимо из $_SERVER.
+$requestHeaders = (function (): array {
+    if (function_exists('getallheaders')) {
+        return getallheaders();
+    }
+    $out = [];
+    foreach ($_SERVER as $name => $value) {
+        if (str_starts_with($name, 'HTTP_')) {
+            $out[str_replace('_', '-', substr($name, 5))] = $value;
+        } elseif ($name === 'CONTENT_TYPE' || $name === 'CONTENT_LENGTH') {
+            $out[str_replace('_', '-', $name)] = $value;
+        }
+    }
+    return $out;
+})();
+
+foreach ($requestHeaders as $name => $value) {
     if (in_array(strtolower($name), $skipRequest, true)) {
         continue;
     }
