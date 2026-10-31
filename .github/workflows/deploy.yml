@@ -328,6 +328,15 @@ jobs:
             npm ci --include=dev --no-audit --no-fund
             ./node_modules/.bin/prisma generate
 
+            # TEMP DEBUG — диагностика multipart-бага, убрать следующим коммитом
+            echo "=== DEBUG versions ==="
+            node -v
+            node -e "console.log('multer', require('./node_modules/multer/package.json').version)"
+            node -e "console.log('busboy', require('./node_modules/multer/node_modules/busboy/package.json').version)" || node -e "console.log('busboy(top)', require('./node_modules/busboy/package.json').version)" || echo "busboy pkg not found"
+            node -e "console.log('class-validator', require('./node_modules/class-validator/package.json').version)"
+            node -e "console.log('@nestjs/platform-express', require('./node_modules/@nestjs/platform-express/package.json').version)"
+            echo "=== END DEBUG versions ==="
+
             # 4. Схема БД
             ./node_modules/.bin/prisma db push --skip-generate
 
