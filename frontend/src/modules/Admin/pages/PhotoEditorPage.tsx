@@ -249,6 +249,9 @@ export default function PhotoEditorPage() {
     setError('');
 
     if (!categoryId) return setError('Выберите категорию');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId)) {
+        return setError('Неверный идентификатор категории');
+    }
 
     if (isEdit) {
       if (!existing) return;
@@ -459,21 +462,20 @@ export default function PhotoEditorPage() {
                   <button
                     type="button"
                     onClick={() => inputRef.current?.click()}
-                    className="group self-start flex flex-col rounded-xl overflow-hidden text-center
+                    className="group self-start flex flex-col items-center rounded-xl overflow-hidden text-center
                                border border-dashed border-[var(--color-border)] bg-primary
                                text-on-muted hover:text-accent hover:border-accent/60 hover:bg-accent/[0.06]
                                transition-colors"
                   >
-                    <span className="w-full shrink-0 aspect-[4/3] flex flex-col items-center justify-center gap-1 px-2">
+                    <span className="flex flex-col items-center justify-center gap-1 px-2">
                       <HiOutlineUpload className="text-2xl transition-transform group-hover:-translate-y-0.5" />
                       <span className="text-[11px] font-medium leading-tight">Добавить ещё</span>
                     </span>
-                    <span className="block p-2 text-left">
-                      <span className="block px-2 py-1.5 rounded-lg border border-transparent
-                                       text-[11px] leading-normal truncate">
+                    <span className="flex flex-col items-center px-2 py-1.5 text-center">
+                      <span className="block text-[11px] font-medium leading-tight truncate">
                         Ещё {Math.max(0, MAX_FILES - items.length)} из {MAX_FILES}
                       </span>
-                      <span className="block text-[10px] mt-1 text-on-muted/50 truncate">
+                      <span className="block text-[10px] text-on-muted/50 truncate">
                         JPG, PNG, WebP
                       </span>
                     </span>

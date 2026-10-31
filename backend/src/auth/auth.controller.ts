@@ -8,6 +8,8 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiCookieAuth } from '@nestjs/swagger';
 import { Response, Request } from 'express';
@@ -18,8 +20,16 @@ import { RegisterDto } from './dto/register.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
+const validationPipe = new ValidationPipe({
+  whitelist: true,
+  forbidNonWhitelisted: true,
+  transform: true,
+  transformOptions: { enableImplicitConversion: true },
+});
+
 @ApiTags('Auth')
 @Controller('auth')
+@UsePipes(validationPipe)
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 

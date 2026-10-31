@@ -42,17 +42,43 @@ electro-montage/
 
 ## 🚀 Local Development
 
-Сначала — MySQL 8 и база (один раз), см. `STEP_BY_STEP_GUIDE.md` §1.2.
+### 1. MySQL 8 и база (один раз)
+```sql
+CREATE DATABASE electromontage CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'electromontage'@'localhost' IDENTIFIED BY 'apppass';
+GRANT ALL PRIVILEGES ON electromontage.* TO 'electromontage'@'localhost';
+FLUSH PRIVILEGES;
+```
 
+### 2. Backend (терминал 1)
 ```bash
-# backend
 cd backend && npm install
 npx prisma generate && npx prisma db push && npm run prisma:seed
 npm run start:dev            # http://localhost:3001, Swagger /api/docs
+```
 
-# frontend (второй терминал)
+### 3. Frontend (терминал 2)
+```bash
 cd frontend && npm install && npm run dev   # http://localhost:5173
 ```
+
+### Важные переменные окружения (backend/.env) — всегда такие:
+```env
+DATABASE_URL="mysql://electromontage:apppass@127.0.0.1:3306/electromontage"
+JWT_ACCESS_SECRET=zHHGpdvIfUs8aQXa4/tLSjdCQX2ba0YfLgDyxGrrMQc=
+JWT_REFRESH_SECRET=Y7NZvCmxf5+7MdXmqFzeSYM/74fQAZ/Wm/w8YCRcUWQ=
+JWT_ACCESS_TTL="15m"
+JWT_REFRESH_TTL="7d"
+PORT=3001
+NODE_ENV=development
+FRONTEND_URL="http://localhost:5173"
+UPLOAD_DIR="./uploads"
+MAX_FILE_SIZE=10485760
+SEED_ADMIN_LOGIN=admin
+SEED_ADMIN_PASSWORD=IdONUJuW8XU9O_AgUR6xQb6o
+```
+
+**Админ для входа:** `admin` / `IdONUJuW8XU9O_AgUR6xQb6o` (логин, не email)
 
 ### Backend Commands
 ```bash

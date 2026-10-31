@@ -9,6 +9,8 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiCookieAuth } from '@nestjs/swagger';
 
@@ -18,11 +20,19 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 import { ReorderCategoriesDto } from './dto/reorder-categories.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
+const validationPipe = new ValidationPipe({
+  whitelist: true,
+  forbidNonWhitelisted: true,
+  transform: true,
+  transformOptions: { enableImplicitConversion: true },
+});
+
 @ApiTags('Categories')
 @Controller('categories')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 @ApiCookieAuth('access_token')
+@UsePipes(validationPipe)
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 

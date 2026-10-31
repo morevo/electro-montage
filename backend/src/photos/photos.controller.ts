@@ -14,6 +14,8 @@ import {
   UploadedFiles,
   UseInterceptors,
   BadRequestException,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiCookieAuth, ApiConsumes, ApiQuery } from '@nestjs/swagger';
@@ -26,6 +28,13 @@ import { ReorderPhotosDto } from './dto/reorder-photos.dto';
 import { BulkCreatePhotosDto } from './dto/bulk-create-photos.dto';
 import { BulkDeletePhotosDto } from './dto/bulk-delete-photos.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+
+const validationPipe = new ValidationPipe({
+  whitelist: true,
+  forbidNonWhitelisted: true,
+  transform: true,
+  transformOptions: { enableImplicitConversion: true },
+});
 
 @ApiTags('Photos')
 @Controller('photos')
@@ -119,6 +128,7 @@ export class PhotosController {
   @Post('bulk-delete')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Удалить несколько фото' })
+  @UsePipes(validationPipe)
   deleteMany(@Body() dto: BulkDeletePhotosDto) {
     return this.photosService.removeMany(dto.ids);
   }
@@ -128,6 +138,7 @@ export class PhotosController {
   @ApiQuery({ name: 'categoryId', required: false })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
+  @UsePipes(validationPipe)
   findAll(
     @Query('categoryId') categoryId?: string,
     @Query('page') page = 1,
@@ -138,6 +149,7 @@ export class PhotosController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Получить фото по ID' })
+  @UsePipes(validationPipe)
   findOne(@Param('id') id: string) {
     return this.photosService.findOne(id);
   }
@@ -145,12 +157,14 @@ export class PhotosController {
   // ВАЖНО: статические маршруты должны идти до ':id', иначе reorder попадёт в ':id'
   @Patch('reorder')
   @ApiOperation({ summary: 'Изменить порядок фото в категории' })
+  @UsePipes(validationPipe)
   reorder(@Body() reorderDto: ReorderPhotosDto) {
     return this.photosService.reorder(reorderDto.categoryId, reorderDto);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Обновить метаданные фото' })
+  @UsePipes(validationPipe)
   update(@Param('id') id: string, @Body() updatePhotoDto: UpdatePhotoDto) {
     return this.photosService.update(id, updatePhotoDto);
   }
@@ -158,6 +172,7 @@ export class PhotosController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Удалить фото' })
+  @UsePipes(validationPipe)
   delete(@Param('id') id: string) {
     return this.photosService.delete(id);
   }

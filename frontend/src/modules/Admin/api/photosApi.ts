@@ -28,9 +28,7 @@ export const photosApi = {
     formData.append('title', title);
     if (description) formData.append('description', description);
 
-    const response = await api.post<Photo>('/photos', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const response = await api.post<Photo>('/photos', formData);
     return response.data;
   },
 
@@ -47,9 +45,7 @@ export const photosApi = {
     formData.append('titles', JSON.stringify(titles));
     if (description) formData.append('description', description);
 
-    const response = await api.post<{ created: Photo[] }>('/photos/bulk', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const response = await api.post<{ created: Photo[] }>('/photos/bulk', formData);
     return response.data;
   },
 
