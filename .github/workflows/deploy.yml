@@ -215,7 +215,7 @@ jobs:
         run: |
           rsync -az --delete --chmod=D755,F644 \
             -e "ssh -p ${REG_RU_SSH_PORT:-22}" \
-            --exclude node_modules --exclude .env --exclude logs --exclude uploads --exclude .run \
+            --exclude node_modules --exclude .env --exclude logs --exclude uploads --exclude .run --exclude .admin-seeded \
             ./backend/dist ./backend/prisma ./backend/scripts ./backend/package.json ./backend/package-lock.json \
             "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}:${{ steps.backend.outputs.dir }}/"
           echo "✅ Билд выложен в ${{ steps.backend.outputs.dir }}"
@@ -260,6 +260,7 @@ jobs:
               find . -mindepth 1 -maxdepth 1 \
                 -not -name dist -not -name node_modules -not -name prisma -not -name scripts \
                 -not -name logs -not -name uploads -not -name .run -not -name .env \
+                -not -name .admin-seeded \
                 -not -name package.json -not -name package-lock.json \
                 -exec rm -rf {} + 2>/dev/null || true
             fi
@@ -333,12 +334,29 @@ jobs:
             # 4.1 Портфолио из манифеста (идемпотентно: повторно ничего не создаёт)
             node scripts/seed-portfolio.js || echo "⚠️ портфолио не перенесено"
 
-            # 5. Админ: значения из секретов всегда перекрывают .env
-            if [ -n "${{ env.SEED_ADMIN_LOGIN }}" ] && [ -n "${{ env.SEED_ADMIN_PASSWORD }}" ]; then
-              sed -i '/^SEED_ADMIN_LOGIN=/d; /^SEED_ADMIN_PASSWORD=/d' .env
-              echo "SEED_ADMIN_LOGIN=\"${{ env.SEED_ADMIN_LOGIN }}\"" >> .env
-              echo "SEED_ADMIN_PASSWORD=\"${{ env.SEED_ADMIN_PASSWORD }}\"" >> .env
-              node scripts/create-admin.js && echo "✅ админ готов" || echo "⚠️ админ не создан"
+            # 5. Админ создаётся ОДИН раз — при первом деплое, отмеченном отдельным
+            #    маркер-файлом (не .env: он живёт своей жизнью и не должен значить
+            #    «ещё не было администратора»). Дальше логин и пароль меняются
+            #    исключительно через саму админку (раздел «Администраторы») — иначе
+            #    каждый следующий деплой тихо перезаписывал бы пароль, который
+            #    администратор сам сменил. Секреты передаются скрипту напрямую через
+            #    переменные окружения — в .env они больше не записываются.
+            ADMIN_SEEDED_MARKER=".admin-seeded"
+            if [ ! -f "$ADMIN_SEEDED_MARKER" ]; then
+              if [ -n "${{ env.SEED_ADMIN_LOGIN }}" ] && [ -n "${{ env.SEED_ADMIN_PASSWORD }}" ]; then
+                if SEED_ADMIN_LOGIN="${{ env.SEED_ADMIN_LOGIN }}" \
+                   SEED_ADMIN_PASSWORD="${{ env.SEED_ADMIN_PASSWORD }}" \
+                   node scripts/create-admin.js; then
+                  echo "✅ администратор создан"
+                  touch "$ADMIN_SEEDED_MARKER"
+                else
+                  echo "⚠️  администратор не создан — попробую на следующем деплое"
+                fi
+              else
+                echo "⚠️  SEED_ADMIN_LOGIN/SEED_ADMIN_PASSWORD не заданы — создайте администратора вручную"
+              fi
+            else
+              echo "ℹ️  Администратор уже был создан раньше — логин/пароль меняются только через саму админку"
             fi
 
             # 6. Перезапуск: PID-файл, лог, health-check
