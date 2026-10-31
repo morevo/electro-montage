@@ -27,11 +27,40 @@ api.interceptors.request.use(
   (error: AxiosError) => Promise.reject(error)
 );
 
+// На проде бэкенд раз в минуту ненадолго падает и поднимается заново
+// (ограничение shared-хостинга вне нашего контроля — см. CLAUDE.md). В это
+// окно nginx отдаёт 502, ещё не достучавшись до Node, то есть запрос
+// гарантированно не выполнился — его безопасно повторить для любого метода.
+// Сетевая ошибка (нет ответа вообще) трактуется так же.
+const RETRY_DELAY_MS = 600;
+const MAX_RETRIES = 2;
+
+function isRetryableError(error: AxiosError): boolean {
+  if (!error.response) return true; // сеть недоступна / соединение сброшено
+  return error.response.status === 502;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // Response interceptor
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    const originalRequest = error.config as InternalAxiosRequestConfig & {
+      _retry?: boolean;
+      _retryCount?: number;
+    };
+
+    if (originalRequest && isRetryableError(error)) {
+      const retryCount = originalRequest._retryCount ?? 0;
+      if (retryCount < MAX_RETRIES) {
+        originalRequest._retryCount = retryCount + 1;
+        await delay(RETRY_DELAY_MS * originalRequest._retryCount);
+        return api(originalRequest);
+      }
+    }
 
     // Handle 401 - token expired, try refresh.
     // Важно: для самих auth-запросов refresh не вызываем и НЕ перезагружаем
