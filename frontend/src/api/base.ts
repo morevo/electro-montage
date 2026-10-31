@@ -6,12 +6,15 @@ export const API_BASE = '/api';
  * Main axios instance - single source of truth for all API calls
  * Configured with base URL, credentials, and interceptors
  */
+// Без фиксированного Content-Type: axios сам ставит application/json для
+// обычных объектов и multipart/form-data с нужным boundary — для FormData
+// (загрузка фото). Жёстко заданный здесь application/json перебивал этот
+// boundary на всех запросах через этот инстанс, из-за чего multer на
+// бэкенде не распознавал файлы и ронял запрос с «property files should not
+// exist» (поле "files" уходило как обычное текстовое поле, а не файл).
 export const api: AxiosInstance = axios.create({
   baseURL: API_BASE,
   withCredentials: true,
-  headers: {
-    'Content-Type': 'application/json',
-  },
 });
 
 // Request interceptor
