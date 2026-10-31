@@ -108,9 +108,14 @@ jobs:
         if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
         run: |
           # uploads — это фото портфолио, они живут в веб-корне и не должны
-          # удаляться при выкладке статики.
+          # удаляться при выкладке статики. api.php и .htaccess — ручной
+          # реверс-прокси на Node (см. deploy/api.php) и его правила
+          # переписывания: их тоже нет во frontend/dist, и --delete их стирал
+          # на каждом деплое фронтенда, пока не исключили явно.
           rsync -az --delete --chmod=D755,F644 \
             --exclude uploads \
+            --exclude api.php \
+            --exclude .htaccess \
             -e "ssh -p ${REG_RU_SSH_PORT:-22}" \
             ./dist/ \
             "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}:${{ steps.static.outputs.dir }}/"
