@@ -328,10 +328,6 @@ jobs:
             npm ci --include=dev --no-audit --no-fund
             ./node_modules/.bin/prisma generate
 
-            # TEMP DEBUG — изолируем баг: nginx (домен) vs напрямую на loopback.
-            # Запускается ПОСЛЕ перезапуска API (шаг 6 ниже), поэтому сам тест вынесен
-            # в отдельный блок после supervise/health-check — см. ниже "TEMP DEBUG probe".
-
             # 4. Схема БД
             ./node_modules/.bin/prisma db push --skip-generate
 
@@ -366,28 +362,6 @@ jobs:
             # 6. Перезапуск: PID-файл, лог, health-check
             chmod +x scripts/server-start.sh scripts/server-stop.sh scripts/keep-alive.sh scripts/supervise.sh
             bash scripts/server-start.sh
-
-            # TEMP DEBUG probe — изолируем, где теряется поле categoryId: nginx или сам Node.
-            # Токен берём из куки вручную и шлём Bearer-заголовком — так один и тот же
-            # токен годится и для loopback, и для домена (куки домен-специфичны, Bearer нет).
-            # Убрать следующим коммитом вместе с комментарием выше.
-            echo "=== TEMP DEBUG probe ==="
-            COOKIE_JAR=$(mktemp)
-            curl -sS -c "$COOKIE_JAR" -X POST -H "Content-Type: application/json" \
-              -d "{\"login\":\"${{ env.SEED_ADMIN_LOGIN }}\",\"password\":\"${{ env.SEED_ADMIN_PASSWORD }}\"}" \
-              http://127.0.0.1:3001/api/auth/login -o /dev/null -w "login status: %{http_code}\n"
-            TOKEN=$(awk -F'\t' '$6=="access_token"{print $7}' "$COOKIE_JAR")
-            echo "token_len=${#TOKEN}"
-            CATEGORY_ID=$(curl -sS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:3001/api/categories | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{console.log(JSON.parse(d)[0].id)}catch(e){console.log('')}})")
-            echo "categoryId=$CATEGORY_ID"
-            echo "--- loopback (bypass nginx) ---"
-            curl -sS -H "Authorization: Bearer $TOKEN" -X POST -F "categoryId=$CATEGORY_ID" \
-              http://127.0.0.1:3001/api/photos/bulk -w "\nloopback status: %{http_code}\n"
-            echo "--- through nginx (domain) ---"
-            curl -sS -H "Authorization: Bearer $TOKEN" -X POST -F "categoryId=$CATEGORY_ID" \
-              "https://${{ env.REG_RU_DOMAIN }}/api/photos/bulk" -w "\ndomain status: %{http_code}\n"
-            rm -f "$COOKIE_JAR"
-            echo "=== END TEMP DEBUG probe ==="
 
             # 7. Watchdog в cron: хостинг убивает процессы после закрытия
             #    SSH-сессии, а запущенное из cron — живёт.
