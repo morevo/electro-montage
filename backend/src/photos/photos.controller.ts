@@ -51,6 +51,7 @@ export class PhotosController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Загрузить фото' })
   @UseInterceptors(FileInterceptor('file'))
+  @UsePipes(validationPipe)
   async create(
     @Body() createPhotoDto: CreatePhotoDto,
     @UploadedFile() file: Express.Multer.File,
@@ -81,6 +82,7 @@ export class PhotosController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Загрузить несколько фото' })
   @UseInterceptors(FilesInterceptor('files', 20))
+  @UsePipes(validationPipe)
   async createMany(
     @Body() dto: BulkCreatePhotosDto,
     @UploadedFiles() files: Express.Multer.File[],
