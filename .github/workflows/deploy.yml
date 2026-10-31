@@ -220,6 +220,12 @@ jobs:
             "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}:${{ steps.backend.outputs.dir }}/"
           echo "✅ Билд выложен в ${{ steps.backend.outputs.dir }}"
 
+      - name: Ensure portfolio upload dir exists on server
+        if: env.REG_RU_SSH_HOST != ''
+        run: |
+          ssh -p "${REG_RU_SSH_PORT:-22}" "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}" \
+            "mkdir -p '${{ steps.static.outputs.dir }}/uploads/portfolio'"
+
       - name: Upload portfolio seed (images + manifest)
         if: env.REG_RU_SSH_HOST != ''
         run: |
