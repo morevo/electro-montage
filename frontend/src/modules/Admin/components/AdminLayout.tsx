@@ -188,8 +188,6 @@ function AdminSidebar({
             {renderNavItem(guideItem)}
             <a
               href="/"
-              target="_blank"
-              rel="noopener noreferrer"
               title={collapsed ? 'На главную' : undefined}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all
                           text-on-muted border border-transparent hover:text-accent hover:bg-accent/[0.06]

@@ -5,7 +5,10 @@ import type { Photo, PaginatedResponse, ReorderPhotosDto } from '../types';
 
 export function usePhotos() {
   const [photos, setPhotos] = useState<Photo[]>([]);
-  const [loading, setLoading] = useState(false);
+  // true, а не false: иначе на первом рендере (до того как эффект успеет
+  // вызвать fetchPhotos) страница рисует пустое состояние "Фото пока нет"
+  // вместо скелетона, и карточки потом резко сменяют его без плавного перехода.
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
   // Последний запрос — по нему перезапрашиваем после сохранения в редакторе
