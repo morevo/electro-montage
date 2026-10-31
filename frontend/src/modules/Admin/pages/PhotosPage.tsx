@@ -218,9 +218,9 @@ function SortablePhoto({
       {/* Только вход/выход: перестроение двигает dnd-kit своим transform.
           framer layout спорил с ним и давал рывок «мелькнула и вернулась». */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.94 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
         transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
         className="h-full"
       >

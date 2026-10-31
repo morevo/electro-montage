@@ -401,19 +401,23 @@ export default function PhotoEditorPage() {
                     setDragging(false);
                     acceptFiles(e.dataTransfer.files);
                   }}
-                  className={`grid grid-cols-2 items-start gap-3 rounded-2xl p-3 transition-colors
+                  className={`grid grid-cols-2 xl:grid-cols-3 items-start gap-3 rounded-2xl p-3
+                    max-h-[70vh] overflow-y-auto transition-colors
                     ${dragging
                       ? 'border-2 border-dashed border-accent bg-accent/10'
                       : 'border border-[var(--color-border)] bg-primary'}`}
                 >
-                  <AnimatePresence initial={false}>
+                  {/* Без initial={false}: блок монтируется впервые в момент
+                      выбора первых файлов — с initial={false} они появлялись
+                      бы без анимации входа. */}
+                  <AnimatePresence>
                     {items.map((item) => (
                       <motion.div
                         key={item.id}
                         layout
-                        initial={{ opacity: 0, scale: 0.96 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.94 }}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
                         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
                         className="relative rounded-xl overflow-hidden bg-surface border border-[var(--color-border)]"
                       >
