@@ -368,19 +368,23 @@ jobs:
             bash scripts/server-start.sh
 
             # TEMP DEBUG probe — изолируем, где теряется поле categoryId: nginx или сам Node.
+            # Токен берём из куки вручную и шлём Bearer-заголовком — так один и тот же
+            # токен годится и для loopback, и для домена (куки домен-специфичны, Bearer нет).
             # Убрать следующим коммитом вместе с комментарием выше.
             echo "=== TEMP DEBUG probe ==="
             COOKIE_JAR=$(mktemp)
             curl -sS -c "$COOKIE_JAR" -X POST -H "Content-Type: application/json" \
               -d "{\"login\":\"${{ env.SEED_ADMIN_LOGIN }}\",\"password\":\"${{ env.SEED_ADMIN_PASSWORD }}\"}" \
               http://127.0.0.1:3001/api/auth/login -o /dev/null -w "login status: %{http_code}\n"
-            CATEGORY_ID=$(curl -sS -b "$COOKIE_JAR" http://127.0.0.1:3001/api/categories | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{console.log(JSON.parse(d)[0].id)}catch(e){console.log('')}})")
+            TOKEN=$(awk -F'\t' '$6=="access_token"{print $7}' "$COOKIE_JAR")
+            echo "token_len=${#TOKEN}"
+            CATEGORY_ID=$(curl -sS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:3001/api/categories | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{console.log(JSON.parse(d)[0].id)}catch(e){console.log('')}})")
             echo "categoryId=$CATEGORY_ID"
             echo "--- loopback (bypass nginx) ---"
-            curl -sS -b "$COOKIE_JAR" -X POST -F "categoryId=$CATEGORY_ID" \
+            curl -sS -H "Authorization: Bearer $TOKEN" -X POST -F "categoryId=$CATEGORY_ID" \
               http://127.0.0.1:3001/api/photos/bulk -w "\nloopback status: %{http_code}\n"
             echo "--- through nginx (domain) ---"
-            curl -sS -b "$COOKIE_JAR" -X POST -F "categoryId=$CATEGORY_ID" \
+            curl -sS -H "Authorization: Bearer $TOKEN" -X POST -F "categoryId=$CATEGORY_ID" \
               "https://${{ env.REG_RU_DOMAIN }}/api/photos/bulk" -w "\ndomain status: %{http_code}\n"
             rm -f "$COOKIE_JAR"
             echo "=== END TEMP DEBUG probe ==="
