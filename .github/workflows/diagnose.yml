@@ -1,4 +1,4 @@
-name: Diagnose API watchdog (one-off)
+name: Diagnose cron (one-off)
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect cron and watchdog
+      - name: Check cron and watchdog log
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.REG_RU_SSH_HOST }}
@@ -19,24 +19,31 @@ jobs:
             set -uo pipefail
             APP="$HOME/apps/electromontage"
 
-            echo "=== 1. crontab ==="
-            command -v crontab || echo "crontab нет в PATH"
-            crontab -l 2>&1 || echo "  (пусто)"
+            echo "=== crontab ==="
+            crontab -l 2>&1 || echo "  пусто/нет"
 
-            echo "=== 2. cron-демон ==="
-            ps aux | grep -E "[c]ron" | head -5 || echo "  cron не запущен"
+            echo "=== cron-демоны в системе ==="
+            ps -eo pid,args 2>/dev/null | grep -E "[c]ron|[c]rond" | head -5 || echo "  не найдено"
+            ls -la /usr/sbin/cron* /usr/sbin/crond 2>/dev/null | head -5 || true
+            command -v crontab || echo "  crontab нет"
 
-            echo "=== 3. лог API (хвост) ==="
-            tail -25 "$APP/logs/api.log" 2>/dev/null || echo "  лога нет"
+            echo "=== права watchdog ==="
+            ls -la "$APP/scripts/keep-alive.sh"
 
-            echo "=== 4. состояние порта ==="
+            echo "=== лог API: записи watchdog ==="
+            grep -a "watchdog" "$APP/logs/api.log" | tail -10 || echo "  watchdog не писал"
+            echo "=== последние строки лога ==="
+            tail -12 "$APP/logs/api.log" 2>/dev/null | tr -d '\000'
+
+            echo "=== порт сейчас ==="
             ss -ltn 2>/dev/null | grep 3001 || echo "  3001 свободен"
 
-            echo "=== 5. ручной запуск watchdog ==="
+            echo "=== ручной запуск watchdog ==="
             bash "$APP/scripts/keep-alive.sh"; echo "  exit=$?"
-            sleep 20
-            echo "  порт:"; ss -ltn 2>/dev/null | grep 3001 || echo "    не слушается"
-            echo "  процесс:"; ps aux | grep "[d]ist/main.js" | head -3 || echo "    нет"
-            echo "  health:"; curl -s -o /dev/null -w "    %{http_code}\n" http://127.0.0.1:3001/api/health || true
-            echo "=== 6. лог после запуска ==="
-            tail -20 "$APP/logs/api.log" 2>/dev/null || true
+            sleep 8
+            ss -ltn 2>/dev/null | grep 3001 || echo "  порт всё ещё свободен"
+            curl -s -o /dev/null -w "  direct: %{http_code}\n" http://127.0.0.1:3001/api/public/categories || true
+
+            echo "=== есть ли systemd --user ==="
+            systemctl --user is-system-running 2>&1 | head -2 || echo "  systemd --user недоступен"
+            loginctl show-user "$(id -u)" 2>/dev/null | grep -i linger || echo "  linger не проверен"
