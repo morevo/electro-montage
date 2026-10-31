@@ -107,7 +107,10 @@ jobs:
       - name: Upload dist to VPS (rsync)
         if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
         run: |
+          # uploads — это фото портфолио, они живут в веб-корне и не должны
+          # удаляться при выкладке статики.
           rsync -az --delete --chmod=D755,F644 \
+            --exclude uploads \
             -e "ssh -p ${REG_RU_SSH_PORT:-22}" \
             ./dist/ \
             "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}:${{ steps.static.outputs.dir }}/"
@@ -211,10 +214,11 @@ jobs:
       - name: Upload portfolio seed (images + manifest)
         if: env.REG_RU_SSH_HOST != ''
         run: |
+          # Фото сразу кладём в веб-корень: их раздаёт nginx как статику.
           rsync -az --chmod=D755,F644 \
             -e "ssh -p ${REG_RU_SSH_PORT:-22}" \
             ./frontend/src/assets/portfolio/ \
-            "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}:${{ steps.backend.outputs.dir }}/uploads/portfolio/"
+            "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}:${{ steps.static.outputs.dir }}/uploads/portfolio/"
           rsync -az --chmod=F644 \
             -e "ssh -p ${REG_RU_SSH_PORT:-22}" \
             ./frontend/src/assets/portfolio-manifest.json \
@@ -245,7 +249,19 @@ jobs:
                 -exec rm -rf {} + 2>/dev/null || true
             fi
 
-            mkdir -p uploads/portfolio logs .run
+            # Загруженные фото хранятся прямо в веб-корне сайта: nginx отдаёт их
+            # как статику. Путь всегда абсолютный, из секретов не берётся.
+            UPLOAD_ABS="$HOME/www/${{ env.REG_RU_DOMAIN }}/uploads"
+            mkdir -p "$UPLOAD_ABS/portfolio" logs .run
+            if grep -q '^UPLOAD_DIR=' .env 2>/dev/null; then
+              sed -i "s|^UPLOAD_DIR=.*|UPLOAD_DIR=\"$UPLOAD_ABS\"|" .env
+            else
+              echo "UPLOAD_DIR=\"$UPLOAD_ABS\"" >> .env
+            fi
+            echo "UPLOAD_DIR=$UPLOAD_ABS"
+
+            # Старая копия загрузок внутри приложения больше не нужна.
+            rm -rf uploads
 
             # 1. backend/.env создаётся один раз из PROD_DATABASE_URL и живёт на сервере
             if [ ! -f .env ]; then

@@ -4,10 +4,11 @@
   RewriteEngine On
   RewriteBase /
 
-  # API и загруженные фото обслуживает локальный NestJS на 127.0.0.1:3001.
+  # API обслуживает локальный NestJS на 127.0.0.1:3001.
   # mod_proxy на shared-хостинге выключен, поэтому ходим через api.php (curl).
+  # Фото (/uploads/portfolio/*) лежат прямо в веб-корне и отдаются статикой,
+  # без прокси — иначе галерея грузится медленно.
   RewriteRule ^api(/.*)?$ /api.php [L,QSA]
-  RewriteRule ^uploads(/.*)?$ /api.php [L,QSA]
 
   # Существующие файлы и папки отдаём как есть
   RewriteCond %{REQUEST_FILENAME} -f [OR]

@@ -59,7 +59,10 @@ async function main() {
   const root = path.resolve(__dirname, '..');
   const manifestPath =
     process.env.PORTFOLIO_MANIFEST || path.join(root, 'prisma/portfolio-manifest.json');
-  const uploadsDir = path.join(root, 'uploads/portfolio');
+  // Фото живут в веб-корне сайта (UPLOAD_DIR), их раздаёт nginx как статику.
+  const uploadsDir = process.env.UPLOAD_DIR
+    ? path.resolve(process.env.UPLOAD_DIR, 'portfolio')
+    : path.join(root, 'uploads/portfolio');
 
   if (!fs.existsSync(manifestPath)) {
     console.log('ℹ️  манифеста портфолио нет — шаг пропущен');
