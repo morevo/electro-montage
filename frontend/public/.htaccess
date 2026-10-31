@@ -4,10 +4,10 @@
   RewriteEngine On
   RewriteBase /
 
-  # API и загрузки проксируются на VPS (mod_proxy должен быть включён в панели).
-  # Замените api.example.ru на адрес вашего VPS.
-  # RewriteRule ^api/(.*)$ https://api.example.ru/api/$1 [P,L]
-  # RewriteRule ^uploads/(.*)$ https://api.example.ru/uploads/$1 [P,L]
+  # API и загруженные фото обслуживает локальный NestJS на 127.0.0.1:3001.
+  # mod_proxy на shared-хостинге выключен, поэтому ходим через api.php (curl).
+  RewriteRule ^api(/.*)?$ /api.php [L,QSA]
+  RewriteRule ^uploads(/.*)?$ /api.php [L,QSA]
 
   # Существующие файлы и папки отдаём как есть
   RewriteCond %{REQUEST_FILENAME} -f [OR]
