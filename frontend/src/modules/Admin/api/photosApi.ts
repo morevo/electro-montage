@@ -70,7 +70,11 @@ export const photosApi = {
     description?: string
   ): Promise<{ created: Photo[] }> {
     const formData = new FormData();
-    files.forEach((file, index) => formData.append('files', file, safeFileName(file, index)));
+    // "files[]", а не "files" — иначе PHP-прокси api.php на сервере (см.
+    // CLAUDE.md про php://input/multipart) соберёт в $_FILES только
+    // последний файл: без квадратных скобок PHP не массивит повторяющиеся
+    // поля формы.
+    files.forEach((file, index) => formData.append('files[]', file, safeFileName(file, index)));
     formData.append('categoryId', categoryId);
     formData.append('titles', encodeBase64Text(JSON.stringify(titles)));
     if (description) formData.append('description', encodeBase64Text(description));
