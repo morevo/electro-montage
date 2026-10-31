@@ -1,63 +1,27 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────
-# Watchdog для API на shared-хостинге.
+# Страховка для API на shared-хостинге (запускается из cron раз в минуту).
 #
-# Хостинг убивает процессы, запущенные из SSH-сессии, поэтому один
-# `server-start.sh` не гарантирует, что API живёт между деплоями.
-# Этот скрипт вешается в cron (раз в минуту): если /api/health не отвечает,
-# процесс поднимается заново — уже из cron, то есть вне SSH-сессии.
-#
-# Устанавливается автоматически из .github/workflows/deploy.yml.
+# Основную работу делает scripts/supervise.sh: он держит node живым и
+# перезапускает его через 2 секунды после падения. Этот скрипт лишь
+# проверяет, что API отвечает, и при необходимости поднимает супервизор
+# (например после перезагрузки сервера, когда cron стартует без сессии).
 # ─────────────────────────────────────────────────────────────
 set -uo pipefail
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PORT="${PORT:-3001}"
-LOG_FILE="$APP_DIR/logs/api.log"
-PID_FILE="$APP_DIR/.run/api.pid"
+SUP_LOG="$APP_DIR/logs/supervise.log"
 export HOME="${HOME:-$APP_DIR/../..}"
-
-# Проверяем именно существующий эндпоинт. Любой HTTP-ответ (даже 401/404)
-# означает, что сервер жив — убивать его нельзя.
-# Эндпоинта /api/health в бэкенде нет: проверка на него давала 404 и watchdog
-# в цикле убивал рабочий процесс.
-health_code() {
-  curl -s -o /dev/null -w '%{http_code}' --max-time 3 \
-    "http://127.0.0.1:$PORT/api/public/categories" 2>/dev/null || echo 000
-}
-
-CODE="$(health_code)"
-case "$CODE" in
-  2*|3*|4*) exit 0 ;;
-esac
 
 mkdir -p "$APP_DIR/logs" "$APP_DIR/.run"
 
-# Мёртвый PID-файл убираем, процесс при необходимости добиваем
-if [ -f "$PID_FILE" ]; then
-  pid="$(cat "$PID_FILE" 2>/dev/null || true)"
-  if [ -n "${pid:-}" ] && kill -0 "$pid" 2>/dev/null; then
-    kill -9 "$pid" 2>/dev/null || true
-  fi
-  rm -f "$PID_FILE"
-fi
+# Любой HTTP-ответ (даже 401/404) значит, что сервер жив — не трогаем.
+code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 \
+  "http://127.0.0.1:$PORT/api/public/categories" 2>/dev/null || echo 000)"
+case "$code" in
+  2*|3*|4*) exit 0 ;;
+esac
 
-NODE_BIN=""
-for cand in "$HOME"/runtime/node-*/bin/node; do
-  [ -x "$cand" ] && { NODE_BIN="$cand"; break; }
-done
-if [ -z "$NODE_BIN" ] && command -v node >/dev/null 2>&1; then
-  major="$(node -v 2>/dev/null | sed 's/^v\([0-9]*\).*/\1/')"
-  [ "${major:-0}" -ge 18 ] 2>/dev/null && NODE_BIN="$(command -v node)"
-fi
-if [ -z "$NODE_BIN" ]; then
-  echo "$(date '+%F %T') watchdog: не найден Node 18+" >> "$LOG_FILE"
-  exit 1
-fi
-
-cd "$APP_DIR" || exit 1
-export PATH="$(dirname "$NODE_BIN"):$PATH"
-
-echo "$(date '+%F %T') watchdog: API не отвечает — запускаю" >> "$LOG_FILE"
-setsid nohup "$NODE_BIN" dist/main.js >> "$LOG_FILE" 2>&1 &
-echo $! > "$PID_FILE"
+echo "$(date '+%F %T') keep-alive: API не отвечает (код $code) — проверяю супервизор" >> "$SUP_LOG"
+setsid nohup bash "$APP_DIR/scripts/supervise.sh" >> "$SUP_LOG" 2>&1 &

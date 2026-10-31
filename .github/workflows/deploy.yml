@@ -311,7 +311,7 @@ jobs:
             fi
 
             # 6. Перезапуск: PID-файл, лог, health-check
-            chmod +x scripts/server-start.sh scripts/server-stop.sh scripts/keep-alive.sh
+            chmod +x scripts/server-start.sh scripts/server-stop.sh scripts/keep-alive.sh scripts/supervise.sh
             bash scripts/server-start.sh
 
             # 7. Watchdog в cron: хостинг убивает процессы после закрытия

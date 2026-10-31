@@ -17,7 +17,7 @@
 const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
-const { PrismaClient } = require('@prisma/client');
+const { createClient } = require('./prisma-client');
 
 const LOGIN_ENV = 'SEED_ADMIN_LOGIN';
 const PASSWORD_ENV = 'SEED_ADMIN_PASSWORD';
@@ -70,7 +70,7 @@ async function main() {
   loadDotEnv();
   const { login, password } = readCredentials();
 
-  const prisma = new PrismaClient();
+  const prisma = createClient();
   try {
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await prisma.user.upsert({

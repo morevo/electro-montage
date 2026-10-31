@@ -13,7 +13,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { PrismaClient } = require('@prisma/client');
+const { createClient } = require('./prisma-client');
 
 function loadDotEnv() {
   const envPath = path.resolve(__dirname, '..', '.env');
@@ -77,7 +77,7 @@ async function main() {
     return;
   }
 
-  const prisma = new PrismaClient();
+  const prisma = createClient();
   let createdCategories = 0;
   let createdPhotos = 0;
   let copied = 0;

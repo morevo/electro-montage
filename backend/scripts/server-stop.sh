@@ -23,4 +23,12 @@ else
   echo "ℹ️  Процесс $pid уже не работает"
 fi
 
-rm -f "$PID_FILE"
+# Супервизор мог оставить дочерний node — гасим только процесс этого приложения
+for p in $(ps -eo pid=,args= 2>/dev/null | awk '/dist\/main\.js/ {print $1}'); do
+  args=$(ps -p "$p" -o args= 2>/dev/null || true)
+  case "$args" in
+    *"$APP_DIR/dist/main.js"*) kill -9 "$p" 2>/dev/null || true ;;
+  esac
+done
+
+rm -f "$PID_FILE" "$APP_DIR/.run/supervise.lock"

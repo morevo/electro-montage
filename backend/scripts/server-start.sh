@@ -103,11 +103,13 @@ if port_busy; then
   fi
 fi
 
-# nohup + redirect: процесс переживает выход из SSH-сессии
-nohup "$NODE_BIN" dist/main.js >> "$LOG_FILE" 2>&1 &
-echo $! > "$PID_FILE"
+# Запуск под супервизором: он перезапускает API сразу после падения
+# и вместе с setsid переживает выход из SSH-сессии.
+setsid nohup bash "$APP_DIR/scripts/supervise.sh" >> "$APP_DIR/logs/supervise.log" 2>&1 &
+SUP_PID=$!
+echo "$SUP_PID" > "$PID_FILE"
 
-echo "▶ API запущен, PID $(cat "$PID_FILE"), лог: $LOG_FILE"
+echo "▶ API запущен под супервизором, PID $SUP_PID, лог: $LOG_FILE"
 
 # Ждём, пока порт начнёт отвечать (максимум ~20 секунд)
 for _ in $(seq 1 20); do
