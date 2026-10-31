@@ -328,14 +328,9 @@ jobs:
             npm ci --include=dev --no-audit --no-fund
             ./node_modules/.bin/prisma generate
 
-            # TEMP DEBUG — диагностика multipart-бага, убрать следующим коммитом
-            echo "=== DEBUG versions ==="
-            node -v
-            node -e "console.log('multer', require('./node_modules/multer/package.json').version)"
-            node -e "console.log('busboy', require('./node_modules/multer/node_modules/busboy/package.json').version)" || node -e "console.log('busboy(top)', require('./node_modules/busboy/package.json').version)" || echo "busboy pkg not found"
-            node -e "console.log('class-validator', require('./node_modules/class-validator/package.json').version)"
-            node -e "console.log('@nestjs/platform-express', require('./node_modules/@nestjs/platform-express/package.json').version)"
-            echo "=== END DEBUG versions ==="
+            # TEMP DEBUG — изолируем баг: nginx (домен) vs напрямую на loopback.
+            # Запускается ПОСЛЕ перезапуска API (шаг 6 ниже), поэтому сам тест вынесен
+            # в отдельный блок после supervise/health-check — см. ниже "TEMP DEBUG probe".
 
             # 4. Схема БД
             ./node_modules/.bin/prisma db push --skip-generate
@@ -371,6 +366,24 @@ jobs:
             # 6. Перезапуск: PID-файл, лог, health-check
             chmod +x scripts/server-start.sh scripts/server-stop.sh scripts/keep-alive.sh scripts/supervise.sh
             bash scripts/server-start.sh
+
+            # TEMP DEBUG probe — изолируем, где теряется поле categoryId: nginx или сам Node.
+            # Убрать следующим коммитом вместе с комментарием выше.
+            echo "=== TEMP DEBUG probe ==="
+            COOKIE_JAR=$(mktemp)
+            curl -sS -c "$COOKIE_JAR" -X POST -H "Content-Type: application/json" \
+              -d "{\"login\":\"${{ env.SEED_ADMIN_LOGIN }}\",\"password\":\"${{ env.SEED_ADMIN_PASSWORD }}\"}" \
+              http://127.0.0.1:3001/api/auth/login -o /dev/null -w "login status: %{http_code}\n"
+            CATEGORY_ID=$(curl -sS -b "$COOKIE_JAR" http://127.0.0.1:3001/api/categories | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{console.log(JSON.parse(d)[0].id)}catch(e){console.log('')}})")
+            echo "categoryId=$CATEGORY_ID"
+            echo "--- loopback (bypass nginx) ---"
+            curl -sS -b "$COOKIE_JAR" -X POST -F "categoryId=$CATEGORY_ID" \
+              http://127.0.0.1:3001/api/photos/bulk -w "\nloopback status: %{http_code}\n"
+            echo "--- through nginx (domain) ---"
+            curl -sS -b "$COOKIE_JAR" -X POST -F "categoryId=$CATEGORY_ID" \
+              "https://${{ env.REG_RU_DOMAIN }}/api/photos/bulk" -w "\ndomain status: %{http_code}\n"
+            rm -f "$COOKIE_JAR"
+            echo "=== END TEMP DEBUG probe ==="
 
             # 7. Watchdog в cron: хостинг убивает процессы после закрытия
             #    SSH-сессии, а запущенное из cron — живёт.
