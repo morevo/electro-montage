@@ -14,16 +14,20 @@ export function useCategories() {
     listRef.current = categories;
   }, [categories]);
 
-  const fetchCategories = useCallback(async () => {
+  // silent — не трогать loading: используется для фоновой синхронизации
+  // после мутации, которая уже оптимистично обновила список сама (reorder,
+  // delete и т.п.) — полный сброс в "загрузка" тут выглядел бы так, будто
+  // список на мгновение пропадает и появляется заново.
+  const fetchCategories = useCallback(async (opts?: { silent?: boolean }) => {
     try {
-      setLoading(true);
+      if (!opts?.silent) setLoading(true);
       const data = await categoriesApi.getCategories();
       setCategories(data);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Ошибка загрузки категорий');
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, []);
 
@@ -31,8 +35,13 @@ export function useCategories() {
     fetchCategories();
   }, [fetchCategories]);
 
-  // Инвалидация после сохранения в редакторе категории
-  useEffect(() => subscribeAdminRefresh(() => { void fetchCategories(); }), [fetchCategories]);
+  // Инвалидация после сохранения в редакторе категории — тихая: сам список
+  // уже либо обновился оптимистично (reorder/delete), либо это другая
+  // страница/компонент и loading-флаг этой страницы трогать не нужно.
+  useEffect(
+    () => subscribeAdminRefresh(() => { void fetchCategories({ silent: true }); }),
+    [fetchCategories]
+  );
 
   const createCategory = async (data: { name: string; slug?: string; description?: string }) => {
     const newCategory = await categoriesApi.createCategory(data);

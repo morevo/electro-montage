@@ -20,10 +20,13 @@ export function usePhotos() {
     listRef.current = photos;
   }, [photos]);
 
-  const fetchPhotos = useCallback(async (categoryId?: string, page = 1) => {
+  // silent — не трогать loading: для фоновой синхронизации после мутации,
+  // которая уже оптимистично обновила список сама (reorder, delete и т.п.) —
+  // иначе список на мгновение пропадает (скелетон) и появляется заново.
+  const fetchPhotos = useCallback(async (categoryId?: string, page = 1, silent = false) => {
     lastQuery.current = { categoryId, page };
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const data: PaginatedResponse<Photo> = await photosApi.getPhotos(categoryId, page);
       setPhotos(data.data);
       setPagination({ page: data.page, limit: data.limit, total: data.total, totalPages: data.totalPages });
@@ -31,16 +34,17 @@ export function usePhotos() {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Ошибка загрузки фото');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   // Инвалидация: редактор фото после сохранения дёргает refreshAdminData(),
-  // и список перезапрашивает тот же срез, который сейчас показан.
+  // и список перезапрашивает тот же срез, который сейчас показан — тихо,
+  // сам список уже либо обновился оптимистично, либо это другая страница.
   useEffect(
     () =>
       subscribeAdminRefresh(() => {
-        void fetchPhotos(lastQuery.current.categoryId, lastQuery.current.page);
+        void fetchPhotos(lastQuery.current.categoryId, lastQuery.current.page, true);
       }),
     [fetchPhotos]
   );
