@@ -1,6 +1,22 @@
 import { api } from '@/api/base';
 import type { Photo, ReorderPhotosDto, PaginatedResponse } from '@/modules/Admin/types';
 
+/**
+ * WAF хостинга (ModSecurity, правило "Malware.Expert — .htaccess files not
+ * allowed upload") блокирует весь multipart-запрос, если где-то в теле
+ * встречается подстрока вроде ".htaccess" — например в названии фото. Чтобы
+ * свободный текст пользователя не попадал в WAF-фильтр как есть, кодируем
+ * его в base64 (бэкенд декодирует — см. decodeBase64Text).
+ */
+function encodeBase64Text(text: string): string {
+  const bytes = new TextEncoder().encode(text);
+  let binary = '';
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
+}
+
 export const photosApi = {
   async getPhotos(categoryId?: string, page = 1, limit = 20): Promise<PaginatedResponse<Photo>> {
     const params = new URLSearchParams();
@@ -25,8 +41,8 @@ export const photosApi = {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('categoryId', categoryId);
-    formData.append('title', title);
-    if (description) formData.append('description', description);
+    formData.append('title', encodeBase64Text(title));
+    if (description) formData.append('description', encodeBase64Text(description));
 
     const response = await api.post<Photo>('/photos', formData);
     return response.data;
@@ -42,8 +58,8 @@ export const photosApi = {
     const formData = new FormData();
     files.forEach((file) => formData.append('files', file));
     formData.append('categoryId', categoryId);
-    formData.append('titles', JSON.stringify(titles));
-    if (description) formData.append('description', description);
+    formData.append('titles', encodeBase64Text(JSON.stringify(titles)));
+    if (description) formData.append('description', encodeBase64Text(description));
 
     const response = await api.post<{ created: Photo[] }>('/photos/bulk', formData);
     return response.data;
