@@ -336,7 +336,11 @@ export default function CategoriesPage() {
                 <p className="text-sm text-on-muted/50 mt-1">Создайте первую категорию для портфолио</p>
               </motion.div>
             ) : (
-              <AnimatePresence initial={false}>
+              // Без initial={false}: этот AnimatePresence монтируется впервые
+              // именно в момент, когда loading становится false (до этого в
+              // дереве стоит скелетон) — с initial={false} карточки на первом
+              // реальном появлении списка выскакивали бы без анимации входа.
+              <AnimatePresence>
                 {categories.map((cat, index) => (
                   <CategoryItem
                     key={cat.id}

@@ -454,7 +454,11 @@ export default function PhotosPage() {
         >
           <SortableContext items={photos.map((p) => p.id)} strategy={rectSortingStrategy}>
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-              <AnimatePresence initial={false}>
+              {/* Без initial={false}: этот AnimatePresence монтируется впервые
+                  именно в момент, когда loading становится false — с
+                  initial={false} карточки на первом реальном появлении списка
+                  выскакивали бы без анимации входа. */}
+              <AnimatePresence>
                 {photos.map((photo) => (
                   <SortablePhoto
                     key={photo.id}

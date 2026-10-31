@@ -154,7 +154,11 @@ export default function UsersPage() {
             <p className="text-on-muted">Администраторов пока нет</p>
           </motion.div>
         ) : (
-          <AnimatePresence initial={false}>
+          // Без initial={false}: этот AnimatePresence монтируется впервые
+          // именно в момент, когда loading становится false — с
+          // initial={false} карточки на первом реальном появлении списка
+          // выскакивали бы без анимации входа.
+          <AnimatePresence>
             {users.map((admin) => (
               <motion.div
                 key={admin.id}
