@@ -295,8 +295,18 @@ jobs:
             fi
 
             # 6. Перезапуск: PID-файл, лог, health-check
-            chmod +x scripts/server-start.sh scripts/server-stop.sh
+            chmod +x scripts/server-start.sh scripts/server-stop.sh scripts/keep-alive.sh
             bash scripts/server-start.sh
+
+            # 7. Watchdog в cron: хостинг убивает процессы после закрытия
+            #    SSH-сессии, а запущенное из cron — живёт.
+            CRON_LINE="* * * * * $APP_PATH/scripts/keep-alive.sh >/dev/null 2>&1"
+            if command -v crontab >/dev/null 2>&1; then
+              ( crontab -l 2>/dev/null | grep -v 'keep-alive.sh' || true; echo "$CRON_LINE" ) | crontab -
+              echo "✅ cron: $(crontab -l 2>/dev/null | grep -c 'keep-alive.sh') запись(ей) keep-alive"
+            else
+              echo "⚠️ crontab недоступен — API придётся поднимать после деплоя вручную"
+            fi
 
             echo "=== содержимое каталога бэкенда ==="
             ls -la "$APP_PATH"
