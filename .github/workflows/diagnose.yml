@@ -1,4 +1,4 @@
-name: Diagnose API routing (one-off)
+name: Diagnose API watchdog (one-off)
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect backend and test API proxy
+      - name: Inspect cron and watchdog
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.REG_RU_SSH_HOST }}
@@ -17,42 +17,26 @@ jobs:
           command_timeout: 8m
           script: |
             set -uo pipefail
-            SITE="$HOME/www/abcn77.ru"
-            APP="$HOME/apps/electromontage/backend"
+            APP="$HOME/apps/electromontage"
 
-            echo "=== 1. Лог API (хвост) ==="
-            tail -40 "$APP/logs/api.log" 2>/dev/null || echo "лога нет"
+            echo "=== 1. crontab ==="
+            command -v crontab || echo "crontab нет в PATH"
+            crontab -l 2>&1 || echo "  (пусто)"
 
-            echo "=== 2. Порт и процессы ==="
-            ss -ltnp 2>/dev/null | grep 3001 || echo "  3001 свободен"
-            ps aux | grep -E "dist/main" | grep -v grep || echo "  node не запущен"
+            echo "=== 2. cron-демон ==="
+            ps aux | grep -E "[c]ron" | head -5 || echo "  cron не запущен"
 
-            echo "=== 3. Перезапуск API ==="
-            cd "$APP" && bash scripts/server-start.sh 2>&1 | tail -10 || echo "  start упал"
-            sleep 3
-            ss -ltnp 2>/dev/null | grep 3001 || echo "  порт не слушается"
-            curl -s -o /dev/null -w "  direct /api/health -> %{http_code}\n" http://127.0.0.1:3001/api/health || true
-            echo "  лог после перезапуска:"
-            tail -15 "$APP/logs/api.log" 2>/dev/null || true
+            echo "=== 3. лог API (хвост) ==="
+            tail -25 "$APP/logs/api.log" 2>/dev/null || echo "  лога нет"
 
-            echo "=== 4. Тест проксирования /api через .htaccess ==="
-            cp "$SITE/.htaccess" "$SITE/.htaccess.bak"
-            if ! grep -q "3001" "$SITE/.htaccess"; then
-              sed -i '0,/RewriteEngine On/s//RewriteEngine On\nRewriteRule ^api\/(.*)$ http:\/\/127.0.0.1:3001\/api\/$1 [P,L]/' "$SITE/.htaccess"
-              echo "  правило добавлено"
-            else
-              echo "  правило уже есть"
-            fi
-            sleep 2
-            CODE=$(curl -s -o /tmp/api.out -w "%{http_code}" https://abcn77.ru/api/health || echo ERR)
-            CT=$(curl -sI https://abcn77.ru/api/health 2>/dev/null | grep -i "^content-type" | tr -d '\r')
-            echo "  status=$CODE  $CT"
-            echo -n "  тело: "; head -c 200 /tmp/api.out 2>/dev/null; echo
-            if [ "$CODE" = "200" ] && echo "$CT" | grep -qi json; then
-              echo "  ✅ проксирование работает"
-              rm -f "$SITE/.htaccess.bak"
-            else
-              echo "  ❌ проксирование не заработало — откатываю .htaccess"
-              mv "$SITE/.htaccess.bak" "$SITE/.htaccess"
-              curl -s -o /dev/null -w "  сайт после отката: %{http_code}\n" https://abcn77.ru/ || true
-            fi
+            echo "=== 4. состояние порта ==="
+            ss -ltn 2>/dev/null | grep 3001 || echo "  3001 свободен"
+
+            echo "=== 5. ручной запуск watchdog ==="
+            bash "$APP/scripts/keep-alive.sh"; echo "  exit=$?"
+            sleep 20
+            echo "  порт:"; ss -ltn 2>/dev/null | grep 3001 || echo "    не слушается"
+            echo "  процесс:"; ps aux | grep "[d]ist/main.js" | head -3 || echo "    нет"
+            echo "  health:"; curl -s -o /dev/null -w "    %{http_code}\n" http://127.0.0.1:3001/api/health || true
+            echo "=== 6. лог после запуска ==="
+            tail -20 "$APP/logs/api.log" 2>/dev/null || true
