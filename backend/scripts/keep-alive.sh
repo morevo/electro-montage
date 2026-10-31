@@ -17,10 +17,19 @@ LOG_FILE="$APP_DIR/logs/api.log"
 PID_FILE="$APP_DIR/.run/api.pid"
 export HOME="${HOME:-$APP_DIR/../..}"
 
-# API живо — ничего не делаем
-if curl -fsS --max-time 3 "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then
-  exit 0
-fi
+# Проверяем именно существующий эндпоинт. Любой HTTP-ответ (даже 401/404)
+# означает, что сервер жив — убивать его нельзя.
+# Эндпоинта /api/health в бэкенде нет: проверка на него давала 404 и watchdog
+# в цикле убивал рабочий процесс.
+health_code() {
+  curl -s -o /dev/null -w '%{http_code}' --max-time 3 \
+    "http://127.0.0.1:$PORT/api/public/categories" 2>/dev/null || echo 000
+}
+
+CODE="$(health_code)"
+case "$CODE" in
+  2*|3*|4*) exit 0 ;;
+esac
 
 mkdir -p "$APP_DIR/logs" "$APP_DIR/.run"
 
