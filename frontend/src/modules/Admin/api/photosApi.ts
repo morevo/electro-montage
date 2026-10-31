@@ -17,6 +17,20 @@ function encodeBase64Text(text: string): string {
   return btoa(binary);
 }
 
+/**
+ * Тот же WAF блокирует запрос и по имени самого файла (правило проверяет
+ * FILES:files, т.е. Content-Disposition filename у загружаемого файла) —
+ * если оригинальное имя содержит что-то вроде ".htaccess" (например, файл
+ * назван по заголовку статьи при экспорте с другого сайта). Название фото
+ * пользователь всё равно вводит отдельно и передаёт в title/titles, поэтому
+ * оригинальное имя файла для бэкенда не нужно — подставляем нейтральное.
+ */
+function safeFileName(file: File, index: number): string {
+  const extMatch = /\.[a-zA-Z0-9]+$/.exec(file.name);
+  const ext = extMatch ? extMatch[0].toLowerCase() : '';
+  return `photo-${Date.now()}-${index}${ext}`;
+}
+
 export const photosApi = {
   async getPhotos(categoryId?: string, page = 1, limit = 20): Promise<PaginatedResponse<Photo>> {
     const params = new URLSearchParams();
@@ -39,7 +53,7 @@ export const photosApi = {
     description?: string
   ): Promise<Photo> {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', file, safeFileName(file, 0));
     formData.append('categoryId', categoryId);
     formData.append('title', encodeBase64Text(title));
     if (description) formData.append('description', encodeBase64Text(description));
@@ -56,7 +70,7 @@ export const photosApi = {
     description?: string
   ): Promise<{ created: Photo[] }> {
     const formData = new FormData();
-    files.forEach((file) => formData.append('files', file));
+    files.forEach((file, index) => formData.append('files', file, safeFileName(file, index)));
     formData.append('categoryId', categoryId);
     formData.append('titles', encodeBase64Text(JSON.stringify(titles)));
     if (description) formData.append('description', encodeBase64Text(description));
