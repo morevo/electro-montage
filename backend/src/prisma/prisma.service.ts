@@ -19,11 +19,6 @@ function createAdapter(): PrismaMariaDb {
     password: decodeURIComponent(url.password),
     database: url.pathname.replace(/^\//, ''),
     connectionLimit: 5,
-    // По умолчанию 10с — на общем MySQL-сервере хостинга (не наш, шарится с
-    // другими клиентами) этого иногда не хватает под кратковременную
-    // конкуренцию за ресурсы, и запрос падает с "pool timeout" ещё до того,
-    // как соединение реально стало бы доступно.
-    acquireTimeout: 20000,
     // База живёт на том же хосте — TLS не нужен.
     ssl: false,
   });
