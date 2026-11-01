@@ -1,9 +1,15 @@
 # CLAUDE.md — ElectroMontage Project Documentation
 
-This file provides guidance for working with the ElectroMontage project (React SPA + NestJS API + MySQL 8).
+This file provides guidance for working with the ElectroMontage project (React SPA + PHP API + MySQL 8).
 
-**Стек:** без Docker. MySQL 8 установлен нативно, API — обычный Node-процесс,
-фронтенд — статика за nginx.
+**Стек:** без Docker и без постоянного Node-процесса. MySQL 8 установлен
+нативно, API — PHP 8.1+ (Apache/FastCGI на проде, `php -S` локально),
+фронтенд — статика за Apache.
+
+> Бэкенд переехал с NestJS на PHP: shared-хостинг reg.ru запрещает держать
+> собственный процесс на порту >1024 (за это блокировали исходящий трафик).
+> Подробности и чек-лист — `docs/PHP_MIGRATION.md`. Старый NestJS-код удалён,
+> при необходимости он остаётся в git-истории.
 
 ---
 
@@ -13,30 +19,39 @@ This file provides guidance for working with the ElectroMontage project (React S
 electro-montage/
 ├── frontend/                 # React 18 + Vite + TypeScript + Tailwind
 │   ├── src/                  # React components, pages, hooks, context
-│   ├── public/               # Static assets
-│   ├── vite.config.ts        # dev-proxy /api → localhost:3001
+│   ├── public/.htaccess      # SPA-роутинг + проксирование /api на PHP
+│   ├── vite.config.ts        # dev-proxy /api и /uploads → localhost:3001
 │   └── package.json
 │
-├── backend/                  # NestJS 10 + Prisma + MySQL 8
-│   ├── src/                  # Modules: auth, categories, photos, upload, public
-│   ├── prisma/schema.prisma  # User, Category, Photo, RefreshToken
-│   ├── scripts/
-│   │   ├── server-start.sh   # запуск API без Docker (PID-файл + health-check)
-│   │   ├── server-stop.sh
-│   │   └── create-admin.js
-│   ├── uploads/              # загруженные фото (в git не попадают)
-│   └── .env.example
+├── api/                      # PHP 8.1+ бэкенд (PSR-4, Composer, PDO)
+│   ├── index.php             # front controller: /api/* → сюда
+│   ├── src/
+│   │   ├── Auth/             # login/logout/refresh/me, JWT, Guard
+│   │   ├── Users/            # CRUD пользователей (SUPER_ADMIN)
+│   │   ├── Categories/       # CRUD + reorder категорий
+│   │   ├── Photos/           # CRUD + bulk upload + reorder фото
+│   │   ├── Upload/           # WebP-конвертация (Imagick/GD)
+│   │   ├── PublicApi/        # /api/public/*
+│   │   ├── Console/          # миграции и сиды (bin/*.php)
+│   │   ├── Http/             # Request/Response/Router/Validator
+│   │   └── Support/          # Config, Env, Str, Dates
+│   ├── bin/                  # migrate, seed-admin, seed-portfolio, setup, healthcheck
+│   ├── storage/              # манифест портфолио на проде
+│   ├── uploads/              # локальные загруженные фото (в git не попадают)
+│   ├── .htaccess             # закрывает src/, vendor/, .env от прямого доступа
+│   └── composer.json
 │
-├── deploy/
-│   └── nginx.conf            # серверный конфиг: статика + /api + /uploads
-│
+├── deploy/                   # вспомогательные конфиги (nginx — не применяется)
 ├── .github/workflows/deploy.yml   # автодеплой на reg.ru
-├── AUTODEPLOY.md                  # инструкция по автодеплою (VPS, без Docker)
+├── docs/PHP_MIGRATION.md          # инструкция по переезду с NestJS
+├── AUTODEPLOY.md                  # инструкция по автодеплою
 ├── STEP_BY_STEP_GUIDE.md          # полная инструкция по деплою
+├── LOCAL_DEV.md                   # запуск на своей машине
 └── CLAUDE.md
 ```
 
-Корневого `package.json` нет: зависимости ставятся отдельно в `frontend/` и `backend/`.
+Корневой `package.json` не содержит зависимостей: `npm run dev` поднимает
+MySQL + PHP-API + frontend через `scripts/dev.js`, `npm run dev:stop` гасит.
 
 ---
 
@@ -50,29 +65,34 @@ GRANT ALL PRIVILEGES ON electromontage.* TO 'electromontage'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
-### 2. Backend (терминал 1)
+### 2. Backend (PHP)
 ```bash
-cd backend && npm install
-npx prisma generate && npx prisma db push && npm run prisma:seed
-npm run start:dev            # http://localhost:3001, Swagger /api/docs
+cd api
+composer install
+php bin/setup.php            # схема + админ + демо-портфолио (идемпотентно)
+php -S 127.0.0.1:3001 -t . index.php
 ```
+На Windows расширения включаются флагами
+`-d extension_dir=D:/php/ext -d extension=pdo_mysql -d extension=gd`
+(это уже делает `scripts/dev.js`).
 
-### 3. Frontend (терминал 2)
+### 3. Frontend
 ```bash
 cd frontend && npm install && npm run dev   # http://localhost:5173
 ```
 
-### Важные переменные окружения (backend/.env) — всегда такие:
+Одной командой всё сразу (из корня): `npm run dev`, остановить — `npm run dev:stop`.
+
+### Важные переменные окружения (api/.env) — всегда такие:
 ```env
 DATABASE_URL="mysql://electromontage:apppass@127.0.0.1:3306/electromontage"
 JWT_ACCESS_SECRET=zHHGpdvIfUs8aQXa4/tLSjdCQX2ba0YfLgDyxGrrMQc=
 JWT_REFRESH_SECRET=Y7NZvCmxf5+7MdXmqFzeSYM/74fQAZ/Wm/w8YCRcUWQ=
 JWT_ACCESS_TTL="15m"
 JWT_REFRESH_TTL="7d"
-PORT=3001
-NODE_ENV=development
+APP_ENV=development
 FRONTEND_URL="http://localhost:5173"
-UPLOAD_DIR="./uploads"
+UPLOAD_DIR="uploads"
 MAX_FILE_SIZE=10485760
 SEED_ADMIN_LOGIN=admin
 SEED_ADMIN_PASSWORD=IdONUJuW8XU9O_AgUR6xQb6o
@@ -80,17 +100,15 @@ SEED_ADMIN_PASSWORD=IdONUJuW8XU9O_AgUR6xQb6o
 
 **Админ для входа:** `admin` / `IdONUJuW8XU9O_AgUR6xQb6o` (логин, не email)
 
-### Backend Commands
+### Backend Commands (из каталога `api/`)
 ```bash
-npm run build           # nest build → dist/
-npm run start:dev       # hot reload
-npm run start:prod      # node dist/main
-npm run prisma:studio   # DB GUI
-npm run prisma:seed     # админ + демо-фото (идемпотентно)
-npm run serve:start     # запуск как на сервере (PID-файл, logs/api.log)
-npm run serve:stop
-npm run test            # Jest
-npm run lint            # ESLint --fix
+composer install             # зависимости (firebase/php-jwt) + autoload
+php bin/migrate.php          # создать/проверить схему (идемпотентно)
+php bin/seed-admin.php       # создать админа или обновить пароль
+php bin/seed-portfolio.php   # перенести портфолио по манифесту
+php bin/setup.php            # migrate + админ + демо-фото (для npm run dev)
+php bin/healthcheck.php      # расширения PHP, права на uploads, доступ к БД
+php -S 127.0.0.1:3001 -t . index.php   # локальный сервер
 ```
 
 ### Frontend Commands
@@ -104,20 +122,15 @@ npm run preview
 
 ## 🗄️ Database (MySQL 8)
 
-```sql
-CREATE DATABASE electromontage CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'electromontage'@'localhost' IDENTIFIED BY 'пароль';
-GRANT ALL PRIVILEGES ON electromontage.* TO 'electromontage'@'localhost';
-FLUSH PRIVILEGES;
-```
+Схема описана в `api/src/Console/Migrator.php` и повторяет то, что раньше
+создавала Prisma: `users`, `categories`, `photos`, `refresh_tokens`
+(String = VARCHAR(191), DateTime = DATETIME(3) в UTC, каскадные внешние ключи).
+Применяется идемпотентно (`CREATE TABLE IF NOT EXISTS`) командой
+`php bin/migrate.php` — на проде она выполняется каждым деплоем и ничего не
+меняет в существующей базе.
 
-`backend/.env`: `DATABASE_URL="mysql://ПОЛЬЗОВАТЕЛЬ:ПАРОЛЬ@127.0.0.1:3306/ИМЯ_БАЗЫ"` —
-подставьте доступы **уже существующей** базы. Создавать базу и пользователя
-заново не нужно: SQL выше — только для чистой установки.
-
-Миграций в проекте нет — схема применяется через `npx prisma db push`. На базе
-с данными он только добавляет недостающее; если расхождение схем серьёзное,
-Prisma предложит `--accept-data-loss` — сначала снимите `mysqldump`.
+`api/.env`: `DATABASE_URL="mysql://ПОЛЬЗОВАТЕЛЬ:ПАРОЛЬ@127.0.0.1:3306/ИМЯ_БАЗЫ"` —
+подставьте доступы **уже существующей** базы.
 
 ---
 
@@ -126,24 +139,30 @@ Prisma предложит `--accept-data-loss` — сначала снимите
 `.github/workflows/deploy.yml`, триггер — push в `main`/`master`:
 
 1. **deploy-frontend** — `npm ci` → `npm run build` → `rsync` собранного `dist`
-   на VPS по SSH (или FTPS, если `REG_RU_FRONTEND_MODE=ftp`).
-2. **deploy-backend** — SSH на сервер: сохранить `backend/.env` → `git reset --hard`
-   → `npm ci` → `prisma generate` → `prisma db push` → `npm run build`
-   → `bash scripts/server-start.sh` (перезапуск + health-check). Без Docker.
+   в веб-корень (или FTPS, если `REG_RU_FRONTEND_MODE=ftp`). Каталоги `api/`
+   и `uploads/` из веб-корня при этом не трогаются.
+2. **deploy-backend** — `composer install --no-dev` **в CI**, затем rsync
+   готового `api/` в `<веб-корень>/api`. На сервере по SSH: создание `.env`
+   (один раз, JWT-секреты переносятся из старого конфига), `php bin/migrate.php`,
+   `php bin/seed-portfolio.php`, создание админа по маркеру `.admin-seeded`,
+   диагностика и уборка остатков Node (PID, cron `keep-alive.sh`, `api.php`,
+   `dist`, `node_modules`, скрипты). Постоянный процесс не запускается.
 3. **notify** — сводка.
 
 ### Required GitHub Secrets
 
 | Secret | Description | Example |
 |--------|-------------|---------|
-| `REG_RU_FRONTEND_PATH` | Куда выкладывать `dist` (папка nginx `root`) | `/var/www/abcn77.ru` |
+| `REG_RU_FRONTEND_PATH` | Куда выкладывать `dist` (веб-корень) | `/var/www/abcn77.ru` |
 | `REG_RU_FRONTEND_MODE` | `ssh` (по умолчанию) или `ftp` | `ssh` |
 | `REG_RU_SSH_HOST` | SSH host | `server266.reg.ru` |
 | `REG_RU_SSH_USER` | SSH user | `u3596867` |
 | `REG_RU_SSH_KEY` | Private key (без пароля) | `-----BEGIN OPENSSH PRIVATE KEY-----…` |
 | `REG_RU_SSH_PORT` | SSH port | `22` |
-| `REG_RU_BACKEND_PATH` | Путь к клону репо | `/home/u3596867/apps/electromontage` |
+| `REG_RU_BACKEND_PATH` | Старый каталог Node-бэкенда (используется только для переноса `.env`/маркера и уборки) | `/home/u3596867/apps/electromontage` |
 | `REG_RU_DOMAIN` | Domain | `abcn77.ru` |
+| `PROD_DATABASE_URL` | Строка подключения MySQL (нужна при первом деплое) | `mysql://user:pass@127.0.0.1:3306/db` |
+| `SEED_ADMIN_LOGIN` / `SEED_ADMIN_PASSWORD` | Первый администратор (создаётся один раз) | `admin` / `…` |
 | `REG_RU_HOST` / `REG_RU_USER` / `REG_RU_PASSWORD` | FTP, только для `REG_RU_FRONTEND_MODE=ftp` | `ftp.abcn77.ru` |
 
 Ключ: `ssh-keygen -t ed25519 -f ~/.ssh/deploy_key -C "github-actions-deploy" -N ""`,
@@ -151,44 +170,35 @@ Prisma предложит `--accept-data-loss` — сначала снимите
 
 ---
 
-## 🏭 Production (VPS reg.ru, без Docker)
+## 🏭 Production (reg.ru, без Docker)
 
-```bash
-# 1. Код
-git clone https://github.com/morevo/electro-montage.git ~/apps/electromontage
-cd ~/apps/electromontage
-cp backend/.env.production.example backend/.env
-nano backend/.env          # DATABASE_URL, JWT_*, FRONTEND_URL, SEED_*
-
-# 2. Сборка и запуск API
-cd backend
-npm ci && npx prisma generate && npx prisma db push --skip-generate
-npm run build && bash scripts/server-start.sh
-
-# 3. nginx (нужен root)
-sudo cp ../deploy/nginx.conf /etc/nginx/sites-available/abcn77.ru
-sudo ln -s /etc/nginx/sites-available/abcn77.ru /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
+```
+~/www/abcn77.ru/           # веб-корень: статика + uploads + api
+├── index.html, assets/    # frontend/dist
+├── .htaccess              # SPA-роутинг + /api → /api/index.php
+├── uploads/portfolio/     # фото (статика, PHP их не отдаёт)
+└── api/                   # PHP-бэкенд (index.php, src, vendor, .env)
 ```
 
-- API слушает `127.0.0.1:3001`, наружу отдаёт nginx (`/api/`, `/uploads/`).
-- Статика: `frontend/dist` → `/var/www/abcn77.ru`.
-- Автозапуск с `systemd` (если есть root) — unit в `STEP_BY_STEP_GUIDE.md` §4.6.
-- HTTPS: `sudo certbot --nginx -d abcn77.ru -d www.abcn77.ru`.
+- Apache сам запускает PHP через FastCGI — отдельного процесса, PID-файла и
+  cron-watchdog'а нет.
+- API-адрес: `https://abcn77.ru/api/...`, фото: `/uploads/portfolio/<filename>`.
+- `.env` создаётся деплоем один раз и живёт на сервере; секреты JWT между
+  деплоями не меняются (иначе всех разлогинит).
+- HTTPS — стандартный сертификат хостинга / `certbot`, если есть root.
 
 ### Environment Variables (Production)
 ```env
-DATABASE_URL="mysql://electromontage:пароль@127.0.0.1:3306/electromontage"
+DATABASE_URL="mysql://пользователь:пароль@127.0.0.1:3306/база"
 JWT_ACCESS_SECRET=32+_char_base64
 JWT_REFRESH_SECRET=32+_char_base64
 JWT_ACCESS_TTL=15m
 JWT_REFRESH_TTL=7d
-PORT=3001
-NODE_ENV=production
+APP_ENV=production
 FRONTEND_URL=https://abcn77.ru
-UPLOAD_DIR=./uploads
-SEED_ADMIN_LOGIN=логин_без_@
-SEED_ADMIN_PASSWORD=пароль_16+
+UPLOAD_DIR=/home/uXXXXXXX/www/abcn77.ru/uploads
+MAX_FILE_SIZE=10485760
+PORTFOLIO_MANIFEST=storage/portfolio-manifest.json
 ```
 
 ---
@@ -197,14 +207,20 @@ SEED_ADMIN_PASSWORD=пароль_16+
 
 ```bash
 cd frontend && npx tsc --noEmit && npm run build
-cd backend  && npx tsc --noEmit && npm run build
+
+# PHP: синтаксис + работоспособность
+find api/src api/bin api/index.php -name '*.php' -print0 | xargs -0 -n1 php -l
+php api/bin/healthcheck.php
+
+# быстрый smoke-тест API (curl из PHP)
+php api/bin/healthcheck.php
 ```
 
 Полный прогон локально:
 
 ```bash
-curl http://localhost:3001/api/public/categories
 # браузер: http://localhost:5173 и http://localhost:5173/admin/login
+# API:     http://localhost:3001/api/public/categories
 ```
 
 ### Admin Panel Test
@@ -217,15 +233,17 @@ curl http://localhost:3001/api/public/categories
 ## 🛠️ Troubleshooting
 
 ```bash
+# порты
 lsof -i :5173     # frontend
-lsof -i :3001     # backend (или: bash scripts/server-stop.sh)
+lsof -i :3001     # локальный PHP-сервер (или: npm run dev:stop)
+
+# диагностика PHP-окружения на сервере (через SSH/ISPmanager Shell)
+cd ~/www/abcn77.ru/api && php bin/healthcheck.php
 ```
 
 ### Database Issues
 ```bash
-npx prisma db push       # привести схему в соответствие
-npx prisma generate      # перегенерировать клиент
-npx prisma studio        # визуальный доступ
+php api/bin/migrate.php          # привести схему в соответствие
 mysql -u electromontage -p electromontage
 ```
 
@@ -233,8 +251,6 @@ mysql -u electromontage -p electromontage
 ```bash
 gh run list --workflow=deploy.yml
 gh run view --log <run-id>
-# на сервере:
-tail -n 50 ~/apps/electromontage/backend/logs/api.log
 ```
 
 ---
@@ -243,26 +259,28 @@ tail -n 50 ~/apps/electromontage/backend/logs/api.log
 
 | File | Purpose |
 |------|---------|
-| `frontend/vite.config.ts` | Vite config, aliases, /api proxy |
-| `frontend/tailwind.config.js` | Tailwind theme, dark mode |
-| `backend/prisma/schema.prisma` | DB models (MySQL), enums, relations |
-| `backend/src/main.ts` | Bootstrap, CORS, static /uploads, Swagger |
-| `deploy/nginx.conf` | Статика + прокси /api и /uploads |
-| `backend/scripts/server-start.sh` | Запуск API без Docker и без root |
+| `frontend/vite.config.ts` | Vite config, aliases, /api и /uploads proxy |
+| `frontend/public/.htaccess` | SPA-роутинг и переписывание /api на PHP |
+| `frontend/src/api/base.ts` | axios-инстанс, refresh на 401 |
+| `api/index.php` | front controller |
+| `api/src/App.php` | сборка зависимостей и маршруты |
+| `api/src/Console/Migrator.php` | схема БД (замена `prisma db push`) |
+| `api/.htaccess` | доступ только к index.php |
 | `.github/workflows/deploy.yml` | CI/CD |
 | `STEP_BY_STEP_GUIDE.md` | Полная инструкция по деплою |
-| `AUTODEPLOY.md` | Автодеплой на VPS: секреты, проверка, откат |
+| `AUTODEPLOY.md` | Автодеплой: секреты, проверка, откат |
 
 ---
 
 ## 🔑 Default Admin Credentials
 
 ```
-Login:    <SEED_ADMIN_LOGIN из backend/.env>
-Password: <SEED_ADMIN_PASSWORD из backend/.env>
+Login:    <SEED_ADMIN_LOGIN из api/.env>
+Password: <SEED_ADMIN_PASSWORD из api/.env>
 ```
 
-Пароль в доках и чате не хранится. Сменить: `node scripts/create-admin.js` (обновит пароль).
+Пароль в доках и чате не хранится. Сменить: `php api/bin/seed-admin.php`
+(обновит пароль) или через раздел «Администраторы» в админке.
 
 ---
 
@@ -270,8 +288,8 @@ Password: <SEED_ADMIN_PASSWORD из backend/.env>
 
 | Environment | Frontend | Backend | Database |
 |-------------|----------|---------|----------|
-| Local Dev   | `npm run dev` (5173) | `npm run start:dev` (3001) | MySQL 8 нативно |
-| Production  | `dist` за nginx (или FTPS) | нода на 127.0.0.1:3001, автодеплой по SSH | MySQL 8 на VPS |
+| Local Dev   | `npm run dev` (5173) | `php -S` (3001) | MySQL 8 нативно |
+| Production  | `dist` в веб-корне | `api/` + Apache/PHP-FastCGI | MySQL 8 на хостинге |
 
 ---
 
@@ -294,8 +312,6 @@ Instead use:
 
 ### WebFetch — BLOCKED
 WebFetch calls are denied entirely. The URL is extracted and you are told to use `ctx_fetch_and_index` instead.
-Instead use:
-- `ctx_fetch_and_index(url, source)` then `ctx_search(queries)` to query the indexed content
 
 ## REDIRECTED tools — use sandbox equivalents
 
@@ -307,18 +323,18 @@ For everything else, use:
 
 ### Read (for analysis)
 If you are reading a file to **Edit** it → Read is correct (Edit needs content in context).
-If you are reading to **analyze, explore, or summarize** → use `ctx_execute_file(path, language, code)` instead. Only your printed summary enters context. The raw file content stays in the sandbox.
+If you are reading to **analyze, explore, or summarize** → use `ctx_execute_file(path, language, code)` instead. Only your printed summary enters context.
 
 ### Grep (large results)
 Grep results can flood context. Use `ctx_execute(language: "shell", code: "grep ...")` to run searches in sandbox. Only your printed summary enters context.
 
 ## Tool selection hierarchy
 
-1. **GATHER**: `ctx_batch_execute(commands, queries)` — Primary tool. Runs all commands, auto-indexes output, returns search results. ONE call replaces 30+ individual calls.
-2. **FOLLOW-UP**: `ctx_search(queries: ["q1", "q2", ...])` — Query indexed content. Pass ALL questions as array in ONE call.
-3. **PROCESSING**: `ctx_execute(language, code)` | `ctx_execute_file(path, language, code)` — Sandbox execution. Only stdout enters context.
-4. **WEB**: `ctx_fetch_and_index(url, source)` then `ctx_search(queries)` — Fetch, chunk, index, query. Raw HTML never enters context.
-5. **INDEX**: `ctx_index(content, source)` — Store content in FTS5 knowledge base for later search.
+1. **GATHER**: `ctx_batch_execute(commands, queries)` — Primary tool.
+2. **FOLLOW-UP**: `ctx_search(queries: ["q1", "q2", ...])` — query indexed content.
+3. **PROCESSING**: `ctx_execute(language, code)` | `ctx_execute_file(path, language, code)`.
+4. **WEB**: `ctx_fetch_and_index(url, source)` then `ctx_search(queries)`.
+5. **INDEX**: `ctx_index(content, source)`.
 
 ## Subagent routing
 
@@ -327,8 +343,8 @@ When spawning subagents (Agent/Task tool), the routing block is automatically in
 ## Output constraints
 
 - Keep responses under 500 words.
-- Write artifacts (code, configs, PRDs) to FILES — never return them as inline text. Return only: file path + 1-line description.
-- When indexing content, use descriptive source labels so others can `ctx_search(source: "label")` later.
+- Write artifacts (code, configs, PRDs) to FILES — never return them as inline text.
+- When indexing content, use descriptive source labels.
 
 ## ctx commands
 

@@ -2,7 +2,7 @@
   "name": "electromontage",
   "private": true,
   "version": "1.0.0",
-  "description": "Корневые команды для локальной разработки: одна команда поднимает MySQL + backend + frontend, другая — гасит всё разом. Без собственных зависимостей и node_modules — см. scripts/dev.js.",
+  "description": "Корневые команды для локальной разработки: одна команда поднимает MySQL + PHP-бэкенд (api/) + frontend, другая — гасит всё разом. Без собственных зависимостей и node_modules — см. scripts/dev.js.",
   "scripts": {
     "dev": "node scripts/dev.js",
     "dev:stop": "node scripts/dev-stop.js"

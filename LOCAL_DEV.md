@@ -8,61 +8,51 @@
 
 | Что | Зачем | Проверить |
 |-----|-------|-----------|
-| Node.js 18+ | фронтенд и бэкенд | `node -v` |
-| MySQL 8 (сервис `MySQL80`) | база данных | уже установлен у тебя, служба запущена |
-| npm | ставит зависимости | идёт вместе с Node |
+| Node.js 18+ | фронтенд | `node -v` |
+| PHP 8.1+ (CLI) | бэкенд | `php -v` |
+| Composer | зависимости PHP | `composer -V` |
+| Расширения PHP `pdo_mysql` и `gd` (или `imagick`) | MySQL и WebP-конвертация фото | `php -m` |
+| MySQL 8 (сервис `MySQL80`) | база данных | служба запущена |
 
-Docker не используется — всё нативно.
+Docker не используется — всё нативно. Бэкенд — обычный PHP: на проде его
+запускает Apache по запросу, локально `npm run dev` поднимает `php -S` на
+порту 3001, чтобы Vite-прокси работал как раньше.
+
+> На Windows расширения `pdo_mysql`/`gd` часто выключены в `php.ini`.
+> `scripts/dev.js` включает их сам флагами `-d extension=...` — править
+> системный `php.ini` не нужно.
 
 ---
 
-## Шаг 0. Почему сейчас 500 ошибки и "не создаются файлы"
+## Самая быстрая проверка: одна команда
 
-Диагностировал: бэкенд подключается к MySQL пользователем
-`electromontage` / `apppass` (см. `backend/.env`), но этого пользователя в
-локальной базе либо нет, либо у него не тот пароль — **MySQL отвечает
-"Access denied"**. Из-за этого НИ ОДИН запрос к базе не проходит, и API
-отдаёт 500 на всё подряд (логин, категории, фото, загрузку файлов — всё,
-что лезет в базу).
-
-Служба `MySQL80` в Windows **запущена и работает** — дело не в ней, а в
-правах доступа пользователя `electromontage`. Починить это можно только
-через root-доступ к MySQL, а пароль root для локальной установки — Agent
-не знает (ты сказал, что тоже не задавал/не помнишь). Поэтому первый шаг —
-сбросить root-пароль.
-
-### Как сбросить root-пароль MySQL на Windows
-
-Нужна **консоль PowerShell, запущенная от имени администратора**
-(правый клик на PowerShell → "Запуск от имени администратора").
-
-```powershell
-# 1. Останавливаем службу MySQL
-net stop MySQL80
-
-# 2. Создаём временный файл с командой сброса пароля
-'ALTER USER ''root''@''localhost'' IDENTIFIED BY ''NewRootPass123!'';' | Out-File -Encoding ascii C:\mysql-init.txt
-
-# 3. Запускаем MySQL вручную с этим файлом (окно останется открытым - это нормально)
-& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqld.exe" --init-file=C:\mysql-init.txt --console
+```bash
+npm run dev          # из корня репозитория
 ```
 
-Подожди, пока в выводе появится `ready for connections` — пароль уже
-сброшен. Нажми `Ctrl+C`, чтобы остановить этот временный процесс, затем:
+Команда:
+1. пробует запустить службу `MySQL80` (если она остановлена);
+2. выполняет `api/bin/setup.php` — создаёт таблицы, первого админа (если его
+   нет) и демо-портфолио (если в базе нет фото);
+3. поднимает PHP-API на `http://localhost:3001`;
+4. поднимает Vite на `http://localhost:5173`.
+
+Остановить всё: `npm run dev:stop`.
+
+---
+
+## Шаг 0. Почему иногда 500 ошибки и "не создаются файлы"
+
+Бэкенд подключается к MySQL пользователем `electromontage` / `apppass`
+(см. `api/.env`). Если MySQL отвечает "Access denied", ни один запрос к базе
+не проходит, и API отдаёт 500 на всё подряд (логин, категории, фото).
+
+Служба `MySQL80` в Windows должна быть запущена. Если пароль пользователя
+`electromontage` неизвестен, его можно пересоздать через root-доступ к MySQL
+(нужна консоль PowerShell от имени администратора):
 
 ```powershell
-# 4. Удаляем файл с паролем (в нём пароль открытым текстом)
-Remove-Item C:\mysql-init.txt
-
-# 5. Запускаем службу MySQL снова как обычно
-net start MySQL80
-```
-
-Теперь root-пароль — `NewRootPass123!` (замени на свой, если хочешь).
-Дальше — пересоздать пользователя приложения:
-
-```powershell
-& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -pNewRootPass123! -e "
+& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p -e "
 DROP USER IF EXISTS 'electromontage'@'localhost';
 CREATE USER 'electromontage'@'localhost' IDENTIFIED BY 'apppass';
 CREATE DATABASE IF NOT EXISTS electromontage CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -71,42 +61,43 @@ FLUSH PRIVILEGES;
 "
 ```
 
-Если команда ничего не вывела и не упала с ошибкой — всё получилось.
-Проверить можно так:
+Проверить подключение:
 
 ```powershell
 & "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u electromontage -papppass -e "SHOW DATABASES;"
 ```
 
-Должна появиться строка `electromontage` в списке баз.
-
-> В проекте есть вспомогательный скрипт `backend/setup-mysql.js` — он делает
-> то же самое, но предполагает, что у root вообще нет пароля. После сброса
-> пароля выше он не нужен; можно удалить файл или оставить как есть — в
-> git он не закоммичен (стоит в `.gitignore`/просто неотслеживаемый).
+Должна появиться строка `electromontage`.
 
 ---
 
-## Шаг 1. Запуск бэкенда
+## Шаг 1. Бэкенд (PHP)
 
 ```bash
-cd backend
-npm install
-npx prisma generate
-npx prisma db push      # создаст таблицы в базе electromontage
-npm run prisma:seed     # создаст админа и демо-фото
-npm run start:dev       # http://localhost:3001, Swagger: /api/docs
+cd api
+composer install        # ставит firebase/php-jwt и генерирует autoload
+php bin/setup.php       # схема БД + админ + демо-портфолио (идемпотентно)
+php -S 127.0.0.1:3001 -t . index.php
 ```
 
-Если `npx prisma db push` падает с ошибкой подключения — значит Шаг 0 не
-выполнен до конца (проверь `backend/.env` → `DATABASE_URL`).
+Если `php` не находит `pdo_mysql`, добавьте флаги:
 
-### Важно про `/api` в браузере
+```bash
+php -d extension_dir="D:/php/ext" -d extension=pdo_mysql -d extension=gd \
+    -S 127.0.0.1:3001 -t . index.php
+```
 
-Если открыть просто `http://localhost:3001/api` в браузере — увидишь
-`{"message":"Cannot GET /api"}`. Это нормально: `/api` — это префикс для
-маршрутов (`/api/auth/login`, `/api/photos` и т.д.), а не страница сама по
-себе. Документация API (Swagger) — по адресу `http://localhost:3001/api/docs`.
+Проверка: `http://localhost:3001/api/public/categories` должен вернуть JSON
+со списком категорий. Диагностика окружения — `php bin/healthcheck.php`.
+
+### Полезные CLI-команды (из каталога `api/`)
+
+| Команда | Что делает |
+|---------|------------|
+| `php bin/migrate.php` | создаёт/проверяет таблицы (идемпотентно) |
+| `php bin/seed-admin.php` | создаёт админа из `SEED_ADMIN_LOGIN/PASSWORD` или обновляет пароль |
+| `php bin/seed-portfolio.php` | переносит портфолио из `frontend/src/assets` по манифесту |
+| `php bin/healthcheck.php` | проверяет PHP-расширения, права на uploads и подключение к БД |
 
 ---
 
@@ -120,9 +111,9 @@ npm install
 npm run dev              # http://localhost:5173
 ```
 
-Фронтенд дергает `/api/...` — Vite сам проксирует эти запросы на
-`localhost:3001` (см. `frontend/vite.config.ts`), поэтому отдельно
-настраивать CORS руками не нужно.
+Фронтенд дергает `/api/...` и картинки `/uploads/...` — Vite сам проксирует
+эти запросы на `localhost:3001` (см. `frontend/vite.config.ts`), поэтому
+отдельно настраивать CORS руками не нужно.
 
 ---
 
@@ -132,16 +123,11 @@ npm run dev              # http://localhost:5173
 2. Открой `http://localhost:5173/admin/login` — форма входа в админку.
 3. Залогинься:
    - **Логин:** `admin` (это логин, не e-mail!)
-   - **Пароль:** значение `SEED_ADMIN_PASSWORD` из `backend/.env`
+   - **Пароль:** значение `SEED_ADMIN_PASSWORD` из `api/.env`
      (сейчас это `IdONUJuW8XU9O_AgUR6xQb6o`)
 4. Если после логина `401 Unauthorized` на `/api/auth/me` — почисти
    куки сайта `localhost:5173` в браузере и попробуй снова (старый
    access/refresh токен мог остаться от другого состояния базы).
-
-Если на 3-м шаге опять `500 Internal server error` на `/api/auth/login` —
-значит Шаг 0 (доступ к MySQL) не выполнен либо `npx prisma db push`
-не создал таблицы. Проверь логи бэкенда в терминале — там будет видно
-точную ошибку Prisma/MySQL.
 
 ---
 
@@ -150,15 +136,13 @@ npm run dev              # http://localhost:5173
 | Что | Значение |
 |-----|----------|
 | Фронтенд (dev) | http://localhost:5173 |
-| Бэкенд API | http://localhost:3001 |
-| Swagger (документация API) | http://localhost:3001/api/docs |
+| Бэкенд API (PHP) | http://localhost:3001 |
 | Админка | http://localhost:5173/admin/login |
 | Логин админки | `admin` |
-| Пароль админки | см. `SEED_ADMIN_PASSWORD` в `backend/.env` |
+| Пароль админки | см. `SEED_ADMIN_PASSWORD` в `api/.env` |
 | MySQL host | `127.0.0.1:3306` |
 | MySQL база | `electromontage` |
 | MySQL пользователь приложения | `electromontage` / `apppass` |
-| MySQL root (после сброса по Шагу 0) | `root` / тот пароль, что задал |
 
 ---
 
@@ -172,8 +156,9 @@ npm run dev              # http://localhost:5173
 | Панель хостинга (ISPmanager) | https://server266.hosting.reg.ru:1500/ |
 | SSH/SFTP логин | `u3596867` |
 | SSH host | `server266.reg.ru` (или IP `31.31.196.50`) |
-| Путь к коду на сервере | обычно `~/apps/electromontage` (см. секрет `REG_RU_BACKEND_PATH`) |
-| Путь фронтенда (nginx root) | см. секрет `REG_RU_FRONTEND_PATH`, вероятно `/var/www/abcn77.ru` |
+| Каталог сайта (веб-корень) | `~/www/abcn77.ru` |
+| PHP-бэкенд | `~/www/abcn77.ru/api` |
+| Фото портфолио | `~/www/abcn77.ru/uploads/portfolio` |
 | MySQL на сервере | база `u3596867_default`, пользователь `u3596867_default`, host `localhost` |
 
 Пароли от этих доступов — только у тебя, в сообщении с паролями от
@@ -190,8 +175,8 @@ npm run dev              # http://localhost:5173
 | Симптом | Причина | Решение |
 |---------|---------|---------|
 | 500 на все запросы (`/api/auth/login`, `/api/photos`...) | MySQL не принимает пользователя `electromontage` | Шаг 0 выше |
-| `Cannot GET /api` в браузере | Открыл `/api` напрямую — это не страница | Открой `/api/docs` или используй фронтенд |
+| `could not find driver` | не загружен `pdo_mysql` | запустить PHP с `-d extension=pdo_mysql` (см. Шаг 1) |
+| `Не найден PHP CLI` при `npm run dev` | PHP не в PATH | установить PHP 8.1+ и перезапустить терминал |
+| Фото загружается, но не создаётся `.webp` | нет `gd`/`imagick` с WebP | `php bin/healthcheck.php`, включить расширение |
 | `net start MySQL80` → "Отказано в доступе" (код 5) | PowerShell не от администратора | Перезапусти PowerShell как администратор |
-| `mysql` не распознан как команда | `mysql.exe` не добавлен в PATH | Используй полный путь: `"C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"`, либо добавь эту папку в переменную окружения PATH |
-| 401 на `/api/auth/me` сразу после логина | Устаревшие куки с токенами от другого состояния базы | Очисти куки `localhost:5173` и `localhost:3001` в браузере |
-| Ошибки при создании/загрузке файлов фото | Старые временные файлы multer в `backend/uploads/tmp` или нет прав на запись в `backend/uploads` | Проверь, что папка `backend/uploads` существует и доступна на запись |
+| 401 на `/api/auth/me` сразу после логина | Устаревшие куки с токенами от другого состояния базы | Очисти куки `localhost:5173` в браузере |

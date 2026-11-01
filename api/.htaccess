@@ -1,0 +1,26 @@
+# Правила для каталога /api (PHP-бэкенд).
+# Снаружи доступен только index.php: исходники, зависимости и .env закрыты.
+
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /api/
+
+  # Прямой доступ к внутренним каталогам и служебным файлам запрещён.
+  RewriteRule ^(src|bin|vendor|storage|uploads)/ - [F,L]
+  RewriteRule ^(composer\.(json|lock)|\.env.*|\.git.*)$ - [F,L]
+
+  # Всё, чего нет на диске, отдаём front controller'у.
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^ index.php [L,QSA]
+</IfModule>
+
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
+
+<FilesMatch "^(composer\.(json|lock))$">
+  Require all denied
+</FilesMatch>

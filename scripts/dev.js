@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 /**
  * Одна команда для локальной разработки: поднимает MySQL (если сервис стоит
- * и просто не запущен), backend (NestJS, watch-режим) и frontend (Vite)
- * вместе, с префиксом [backend]/[frontend] перед каждой строкой вывода.
- * Остановить всё разом — `npm run dev:stop`.
+ * и просто не запущен), PHP-бэкенд (php -S на 3001, как раньше Node) и
+ * frontend (Vite) вместе, с префиксом [backend]/[frontend] перед каждой
+ * строкой вывода. Остановить всё разом — `npm run dev:stop`.
+ *
+ * PHP-бэкенд не требует постоянного процесса на проде (там его запускает
+ * Apache/FastCGI по запросу), но локально удобно так же, как было с NestJS.
  *
  * Специально без npm-зависимостей (без concurrently/kill-port и т.п.):
  * корневой package.json исторически пустой (у backend и frontend свои
@@ -15,6 +18,7 @@ const { spawn, spawnSync } = require('node:child_process');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
+const API_DIR = path.join(ROOT, 'api');
 const isWindows = process.platform === 'win32';
 
 function tryStartMysql() {
@@ -41,6 +45,41 @@ function tryStartMysql() {
         '   Либо открой "Службы" (services.msc) и запусти MySQL80 оттуда.'
     );
   }
+}
+
+/**
+ * На Windows расширения pdo_mysql/gd в php.ini по умолчанию выключены.
+ * Включаем их флагами командной строки — конфиг PHP на машине не трогаем.
+ */
+function phpFlags() {
+  const flags = [];
+  const loaded = spawnSync('php', ['-m'], { encoding: 'utf8' });
+  if (loaded.status !== 0) {
+    console.log(
+      '❌ PHP не найден в PATH. Установите PHP 8.1+ (нужны pdo_mysql и gd/imagick)\n' +
+        '   и проверьте: php -v'
+    );
+    process.exit(1);
+  }
+
+  const modules = new Set(
+    loaded.stdout
+      .split('\n')
+      .map((line) => line.trim().toLowerCase())
+      .filter(Boolean)
+  );
+
+  const missing = ['pdo_mysql', 'gd'].filter((extension) => !modules.has(extension));
+  if (missing.length > 0 && isWindows) {
+    const binary = spawnSync('php', ['-r', 'echo PHP_BINARY;'], { encoding: 'utf8' }).stdout.trim();
+    const extDir = path.join(path.dirname(binary), 'ext');
+    flags.push('-d', `extension_dir=${extDir}`);
+    for (const extension of missing) {
+      flags.push('-d', `extension=${extension}`);
+    }
+  }
+
+  return flags;
 }
 
 /** Печатает строки дочернего процесса с цветным префиксом [name]. */
@@ -73,7 +112,26 @@ tryStartMysql();
 const YELLOW = '\x1b[33m';
 const CYAN = '\x1b[36m';
 
-const backend = runTagged('backend', YELLOW, 'backend', 'npm', ['run', 'start:dev']);
+const flags = phpFlags();
+
+// Схема БД + первый администратор + демо-портфолио (идемпотентно).
+console.log('▶ Готовлю базу (php bin/setup.php)…');
+const setup = spawnSync('php', [...flags, path.join(API_DIR, 'bin', 'setup.php')], {
+  cwd: ROOT,
+  stdio: 'inherit',
+});
+if (setup.status !== 0) {
+  console.log('⚠️  База не подготовлена — API может отвечать ошибкой 500 (см. LOCAL_DEV.md)');
+}
+
+const backend = runTagged('backend', YELLOW, '.', 'php', [
+  ...flags,
+  '-S',
+  '127.0.0.1:3001',
+  '-t',
+  'api',
+  'api/index.php',
+]);
 const frontend = runTagged('frontend', CYAN, 'frontend', 'npm', ['run', 'dev']);
 
 let shuttingDown = false;

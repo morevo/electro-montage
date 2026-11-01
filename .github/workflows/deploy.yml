@@ -1,14 +1,14 @@
 name: Deploy to reg.ru
 
-# Автодеплой без Docker:
+# Автодеплой без Docker и без постоянного процесса:
 #   • frontend — сборка в GitHub Actions, на сервер уезжает только dist (rsync);
-#   • backend  — сборка тоже в GitHub Actions: на сервер попадают только
-#                собранный dist, package.json, prisma-схема и скрипты запуска.
-#                Исходников и git-клона на сервере нет.
+#   • backend  — PHP. Сборка (composer install) тоже в CI: на сервер попадает
+#                готовый каталог api/ без исходников ради сборки. На хостинге
+#                PHP запускает Apache/FastCGI по запросу — ни Node-рантайма,
+#                ни PID-файлов, ни cron-watchdog'а не нужно.
 #
-# MySQL 8 на сервере уже установлен нативно (Docker не нужен и не ставится),
-# база и пользователь созданы один раз вручную — см. STEP_BY_STEP_GUIDE.md §4
-# и AUTODEPLOY.md.
+# MySQL 8 на сервере уже установлен нативно, база и пользователь созданы
+# один раз вручную — см. docs/PHP_MIGRATION.md и STEP_BY_STEP_GUIDE.md §4.
 
 on:
   push:
@@ -16,20 +16,19 @@ on:
   workflow_dispatch:
 
 env:
-  # ── Frontend (FTP на хостинг) ──
+  # ── Frontend ──
   REG_RU_HOST: ${{ secrets.REG_RU_HOST }}
   REG_RU_USER: ${{ secrets.REG_RU_USER }}
   REG_RU_PASSWORD: ${{ secrets.REG_RU_PASSWORD }}
   REG_RU_FRONTEND_PATH: ${{ secrets.REG_RU_FRONTEND_PATH }}
-  # Как выкладывать статику: ssh (rsync на VPS, по умолчанию) или ftp (FTPS).
-  # Не задан → ssh, если есть REG_RU_SSH_HOST, иначе ftp.
+  # Как выкладывать статику: ssh (rsync, по умолчанию) или ftp (FTPS).
   REG_RU_FRONTEND_MODE: ${{ secrets.REG_RU_FRONTEND_MODE }}
-  # Строка подключения к MySQL — из неё создаётся backend/.env при первом деплое.
+  # Строка подключения к MySQL — из неё создаётся api/.env при первом деплое.
   PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
   # Админ создаётся автоматически на первом деплое, если заданы эти секреты.
   SEED_ADMIN_LOGIN: ${{ secrets.SEED_ADMIN_LOGIN }}
   SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
-  # ── Backend (SSH на VPS) ──
+  # ── SSH ──
   REG_RU_SSH_HOST: ${{ secrets.REG_RU_SSH_HOST }}
   REG_RU_SSH_USER: ${{ secrets.REG_RU_SSH_USER }}
   REG_RU_SSH_KEY: ${{ secrets.REG_RU_SSH_KEY }}
@@ -63,7 +62,7 @@ jobs:
       - name: Build frontend
         run: npm run build
 
-      # ── Вариант A (по умолчанию): статика прямо на VPS, nginx отдаёт папку ──
+      # ── Вариант A (по умолчанию): статика прямо на сервере ──
       - name: Check SSH secrets
         if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
         run: |
@@ -77,19 +76,19 @@ jobs:
             exit 1
           fi
 
-      - name: Setup SSH agent for VPS
+      - name: Setup SSH agent
         if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ env.REG_RU_SSH_KEY }}
 
-      - name: Trust VPS host key
+      - name: Trust host key
         if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -p "${REG_RU_SSH_PORT:-22}" -H "$REG_RU_SSH_HOST" >> ~/.ssh/known_hosts
 
-      - name: Resolve static directory on VPS
+      - name: Resolve static directory on server
         id: static
         if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
         run: |
@@ -104,19 +103,15 @@ jobs:
           ssh -p "${REG_RU_SSH_PORT:-22}" "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}" \
             "mkdir -p '${{ steps.static.outputs.dir }}'"
 
-      - name: Upload dist to VPS (rsync)
+      - name: Upload dist to server (rsync)
         if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
         run: |
-          # uploads — это фото портфолио, они живут в веб-корне и не должны
-          # удаляться при выкладке статики. api.php — ручной реверс-прокси на
-          # Node (см. deploy/api.php): его нет во frontend/dist (не часть
-          # сборки), и --delete его стирал на каждом деплое фронтенда, пока не
-          # исключили явно. .htaccess исключать не нужно — он лежит в
-          # frontend/public/.htaccess и Vite сам кладёт его в dist/, так что
-          # каждый деплой корректно его обновляет.
+          # --delete чистит устаревшие ассеты, но НЕ трогает:
+          #   uploads — фото портфолио (живут в веб-корне);
+          #   api     — PHP-бэкенд (выкладывается job'ом deploy-backend).
           rsync -az --delete --chmod=D755,F644 \
             --exclude uploads \
-            --exclude api.php \
+            --exclude api \
             -e "ssh -p ${REG_RU_SSH_PORT:-22}" \
             ./dist/ \
             "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}:${{ steps.static.outputs.dir }}/"
@@ -125,7 +120,7 @@ jobs:
       - name: Verify deployed files
         if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
         run: |
-          CMD="stat -c '%n | %y' '${{ steps.static.outputs.dir }}/index.html'; grep -oE 'assets/index-[A-Za-z0-9_-]+\\.(js|css)' '${{ steps.static.outputs.dir }}/index.html'"
+          CMD="stat -c '%n | %y' '${{ steps.static.outputs.dir }}/index.html'; grep -oE 'assets/index-[A-Za-z0-9_-]+\\\\.(js|css)' '${{ steps.static.outputs.dir }}/index.html'"
           ssh -p "${REG_RU_SSH_PORT:-22}" "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}" "$CMD"
 
       # ── Вариант B: FTPS на shared-хостинг (только если режим ftp) ──
@@ -148,7 +143,7 @@ jobs:
             **/*.map
 
   # ──────────────────────────────────────────────
-  # BACKEND: сборка в CI, на сервер — только билд
+  # BACKEND: PHP, сборка в CI, на сервер — готовый код
   # ──────────────────────────────────────────────
   deploy-backend:
     runs-on: ubuntu-latest
@@ -168,20 +163,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
+          php-version: '8.3'
+          extensions: mbstring, pdo_mysql, fileinfo, gd
+          tools: composer:v2
+          coverage: none
 
-      - name: Install and build backend
-        working-directory: ./backend
-        run: |
-          npm ci --include=dev --no-audit --no-fund
-          npx prisma generate
-          npm run build
-          test -f dist/main.js || { echo "❌ dist/main.js не собрался"; exit 1; }
+      - name: Install PHP dependencies
+        working-directory: ./api
+        run: composer install --no-dev --optimize-autoloader --classmap-authoritative --no-interaction --no-progress
+
+      - name: Lint PHP sources
+        working-directory: ./api
+        run: find src bin index.php -name '*.php' -print0 | xargs -0 -n1 php -l
 
       - name: Setup SSH agent
         if: env.REG_RU_SSH_HOST != ''
@@ -204,38 +200,62 @@ jobs:
           echo "dir=$DIR" >> "$GITHUB_OUTPUT"
           echo "Сайт → $DIR"
 
-      - name: Resolve backend directory on server
-        id: backend
+      - name: Resolve old backend directory
+        id: oldbackend
         if: env.REG_RU_SSH_HOST != ''
         run: |
           APP="$REG_RU_BACKEND_PATH"
           # Секрет может содержать windows-путь — такой игнорируем.
           case "$APP" in /*) : ;; *) APP="" ;; esac
           REMOTE=$(ssh -p "${REG_RU_SSH_PORT:-22}" "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}" \
-            "A='$APP'; [ -n \"\$A\" ] || A=\"\$HOME/apps/electromontage\"; mkdir -p \"\$A\"; echo \"\$A\"")
+            "A='$APP'; [ -n \"\$A\" ] || A=\"\$HOME/apps/electromontage\"; echo \"\$A\"")
           echo "dir=$REMOTE" >> "$GITHUB_OUTPUT"
-          echo "Бэкенд → $REMOTE"
+          echo "Старый Node-каталог (только для миграции .env/маркера) → $REMOTE"
 
-      - name: Upload build to server (rsync)
+      # Проверяем PHP ДО того, как что-то менять на сервере: если CLI нужной
+      # версии нет, деплой останавливается и старый API продолжает работать.
+      - name: Check PHP CLI on server
         if: env.REG_RU_SSH_HOST != ''
         run: |
+          ssh -p "${REG_RU_SSH_PORT:-22}" "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}" 'bash -s' <<'REMOTE'
+          set -e
+          for candidate in php php8.3 php8.2 php8.1 /usr/local/bin/php8.3 /opt/php/8.3/bin/php "$HOME/.php/8.3/bin/php"; do
+            if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -r 'exit(PHP_VERSION_ID >= 80100 && extension_loaded("pdo_mysql") ? 0 : 1);' 2>/dev/null; then
+              echo "PHP CLI: $("$candidate" -r 'echo PHP_VERSION;')"
+              "$candidate" -r 'echo "extensions: pdo_mysql=", extension_loaded("pdo_mysql") ? "ok" : "НЕТ", ", gd=", extension_loaded("gd") ? "ok" : "нет", ", imagick=", extension_loaded("imagick") ? "ok" : "нет", "\n";'
+              exit 0
+            fi
+          done
+          echo "❌ Не найден PHP CLI 8.1+ с pdo_mysql — деплой остановлен до изменения файлов."
+          echo "   В ISPmanager выберите PHP 8.x для сайта и включите pdo_mysql."
+          exit 1
+          REMOTE
+
+      - name: Upload API to server (rsync)
+        if: env.REG_RU_SSH_HOST != ''
+        run: |
+          API_DIR="${{ steps.static.outputs.dir }}/api"
           rsync -az --delete --chmod=D755,F644 \
             -e "ssh -p ${REG_RU_SSH_PORT:-22}" \
-            --exclude node_modules --exclude .env --exclude logs --exclude uploads --exclude .run --exclude .admin-seeded \
-            ./backend/dist ./backend/prisma ./backend/scripts ./backend/package.json ./backend/package-lock.json \
-            "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}:${{ steps.backend.outputs.dir }}/"
-          echo "✅ Билд выложен в ${{ steps.backend.outputs.dir }}"
+            --exclude .env \
+            --exclude .admin-seeded \
+            --exclude uploads \
+            --exclude 'storage/*.json' \
+            ./api/ \
+            "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}:${API_DIR}/"
+          echo "✅ API выложен в ${API_DIR}"
 
-      - name: Ensure portfolio upload dir exists on server
+      - name: Ensure upload dirs exist on server
         if: env.REG_RU_SSH_HOST != ''
         run: |
+          STORAGE="${{ steps.static.outputs.dir }}"
           ssh -p "${REG_RU_SSH_PORT:-22}" "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}" \
-            "mkdir -p '${{ steps.static.outputs.dir }}/uploads/portfolio'"
+            "mkdir -p '${STORAGE}/uploads/portfolio' '${STORAGE}/api/storage' && chmod 775 '${STORAGE}/uploads' '${STORAGE}/uploads/portfolio' '${STORAGE}/api/storage' 2>/dev/null || true"
 
       - name: Upload portfolio seed (images + manifest)
         if: env.REG_RU_SSH_HOST != ''
         run: |
-          # Фото сразу кладём в веб-корень: их раздаёт nginx как статику.
+          # Фото сразу кладём в веб-корень: их раздаёт Apache как статику.
           rsync -az --chmod=D755,F644 \
             -e "ssh -p ${REG_RU_SSH_PORT:-22}" \
             ./frontend/src/assets/portfolio/ \
@@ -243,10 +263,10 @@ jobs:
           rsync -az --chmod=F644 \
             -e "ssh -p ${REG_RU_SSH_PORT:-22}" \
             ./frontend/src/assets/portfolio-manifest.json \
-            "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}:${{ steps.backend.outputs.dir }}/prisma/portfolio-manifest.json"
+            "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}:${{ steps.static.outputs.dir }}/api/storage/portfolio-manifest.json"
           echo "✅ Изображения и манифест портфолио загружены"
 
-      - name: Prepare and restart API on server
+      - name: Prepare API on server (env, schema, seed)
         if: env.REG_RU_SSH_HOST != ''
         uses: appleboy/ssh-action@v1
         with:
@@ -257,104 +277,89 @@ jobs:
           command_timeout: 20m
           script: |
             set -euo pipefail
-            APP_PATH="${{ steps.backend.outputs.dir }}"
-            cd "$APP_PATH"
+            SITE="${{ steps.static.outputs.dir }}"
+            API_DIR="$SITE/api"
+            OLD_APP="${{ steps.oldbackend.outputs.dir }}"
+            cd "$API_DIR"
 
-            # 0. Убираем всё, что осталось от прежнего деплоя «клоном»:
-            #    исходники, .git, frontend, доки. На сервере живут только билды.
-            if printf '%s' "$APP_PATH" | grep -q '/apps/'; then
-              find . -mindepth 1 -maxdepth 1 \
-                -not -name dist -not -name node_modules -not -name prisma -not -name scripts \
-                -not -name logs -not -name uploads -not -name .run -not -name .env \
-                -not -name .admin-seeded \
-                -not -name package.json -not -name package-lock.json \
-                -exec rm -rf {} + 2>/dev/null || true
+            # PHP CLI на shared-хостинге: ищем версию 8.1+ с pdo_mysql.
+            find_php() {
+              for candidate in php php8.3 php8.2 php8.1 /usr/local/bin/php8.3 /opt/php/8.3/bin/php "$HOME/.php/8.3/bin/php"; do
+                if command -v "$candidate" >/dev/null 2>&1 && \
+                   "$candidate" -r 'exit(PHP_VERSION_ID >= 80100 && extension_loaded("pdo_mysql") ? 0 : 1);' 2>/dev/null; then
+                  command -v "$candidate"
+                  return 0
+                fi
+              done
+              return 1
+            }
+            if ! PHP_BIN="$(find_php)"; then
+              echo "❌ Не найден PHP CLI 8.1+ с pdo_mysql — миграция и сид не выполнены."
+              echo "   Проверьте в ISPmanager: PHP CLI нужной версии и расширение pdo_mysql."
+              exit 1
             fi
+            echo "PHP CLI: $PHP_BIN ($("$PHP_BIN" -r 'echo PHP_VERSION;'))"
 
-            # Загруженные фото хранятся прямо в веб-корне сайта: nginx отдаёт их
-            # как статику. Путь всегда абсолютный, из секретов не берётся.
-            UPLOAD_ABS="$HOME/www/${{ env.REG_RU_DOMAIN }}/uploads"
-            mkdir -p "$UPLOAD_ABS/portfolio" logs .run
-            if grep -q '^UPLOAD_DIR=' .env 2>/dev/null; then
-              sed -i "s|^UPLOAD_DIR=.*|UPLOAD_DIR=\"$UPLOAD_ABS\"|" .env
-            else
-              echo "UPLOAD_DIR=\"$UPLOAD_ABS\"" >> .env
-            fi
-            echo "UPLOAD_DIR=$UPLOAD_ABS"
-
-            # Старая копия загрузок внутри приложения больше не нужна.
-            rm -rf uploads
-
-            # 1. backend/.env создаётся один раз из PROD_DATABASE_URL и живёт на сервере
+            # 1. .env создаётся ОДИН раз. Секреты JWT переносим из старого .env,
+            #    чтобы деплой не разлогинивал всех и не менял подпись между выкатками.
             if [ ! -f .env ]; then
               if [ -z "${{ env.PROD_DATABASE_URL }}" ]; then
                 echo "❌ .env нет, и секрет PROD_DATABASE_URL не задан."
-                echo "   Добавьте секрет PROD_DATABASE_URL (mysql://user:pass@127.0.0.1:3306/db)"
                 exit 1
               fi
+
+              DB_URL="${{ env.PROD_DATABASE_URL }}"
+              ACCESS_SECRET=""
+              REFRESH_SECRET=""
+              if [ -f "$OLD_APP/.env" ]; then
+                ACCESS_SECRET="$(grep -E '^JWT_ACCESS_SECRET=' "$OLD_APP/.env" | head -n1 | cut -d= -f2- | tr -d '\"')"
+                REFRESH_SECRET="$(grep -E '^JWT_REFRESH_SECRET=' "$OLD_APP/.env" | head -n1 | cut -d= -f2- | tr -d '\"')"
+                OLD_DB_URL="$(grep -E '^DATABASE_URL=' "$OLD_APP/.env" | head -n1 | cut -d= -f2- | tr -d '\"')"
+                [ -n "$OLD_DB_URL" ] && DB_URL="$OLD_DB_URL"
+              fi
+              [ -n "$ACCESS_SECRET" ] || ACCESS_SECRET="$(openssl rand -base64 32)"
+              [ -n "$REFRESH_SECRET" ] || REFRESH_SECRET="$(openssl rand -base64 32)"
+
               {
-                echo "DATABASE_URL=\"${{ env.PROD_DATABASE_URL }}\""
-                echo "JWT_ACCESS_SECRET=\"$(openssl rand -base64 32)\""
-                echo "JWT_REFRESH_SECRET=\"$(openssl rand -base64 32)\""
+                echo "DATABASE_URL=\"$DB_URL\""
+                echo "JWT_ACCESS_SECRET=\"$ACCESS_SECRET\""
+                echo "JWT_REFRESH_SECRET=\"$REFRESH_SECRET\""
                 echo "JWT_ACCESS_TTL=15m"
                 echo "JWT_REFRESH_TTL=7d"
-                echo "PORT=3001"
-                echo "NODE_ENV=production"
+                echo "APP_ENV=production"
                 echo "FRONTEND_URL=\"https://${{ env.REG_RU_DOMAIN }}\""
-                echo "UPLOAD_DIR=./uploads"
+                echo "UPLOAD_DIR=\"$SITE/uploads\""
                 echo "MAX_FILE_SIZE=10485760"
+                echo "PORTFOLIO_MANIFEST=\"storage/portfolio-manifest.json\""
               } > .env
               chmod 600 .env
-              echo "✅ .env создан из PROD_DATABASE_URL"
+              echo "✅ .env создан (секреты JWT перенесены из старого конфига, если он был)"
             fi
 
-            # 2. Node на хостинге по умолчанию старый (v10) — ставим свой в $HOME/runtime
-            NODE_VERSION=20.18.1
-            case "$(uname -m)" in
-              x86_64|amd64) NODE_ARCH=x64 ;;
-              aarch64|arm64) NODE_ARCH=arm64 ;;
-              *) echo "❌ Неизвестная архитектура: $(uname -m)"; exit 1 ;;
-            esac
-            NODE_HOME="$HOME/runtime/node-v$NODE_VERSION-linux-$NODE_ARCH"
-            if [ ! -x "$NODE_HOME/bin/node" ]; then
-              mkdir -p "$HOME/runtime"
-              TARBALL="$HOME/runtime/node.tar.xz"
-              if curl -fsSL "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-$NODE_ARCH.tar.xz" -o "$TARBALL" && tar -xJf "$TARBALL" -C "$HOME/runtime"; then
-                rm -f "$TARBALL"
-              else
-                curl -fsSL "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-$NODE_ARCH.tar.gz" -o "$HOME/runtime/node.tar.gz"
-                tar -xzf "$HOME/runtime/node.tar.gz" -C "$HOME/runtime"
-                rm -f "$HOME/runtime/node.tar.gz"
-              fi
+            # Путь к uploads всегда актуален, даже если .env уже существовал.
+            if grep -q '^UPLOAD_DIR=' .env; then
+              sed -i "s|^UPLOAD_DIR=.*|UPLOAD_DIR=\"$SITE/uploads\"|" .env
+            else
+              echo "UPLOAD_DIR=\"$SITE/uploads\"" >> .env
             fi
-            export PATH="$NODE_HOME/bin:$PATH"
-            echo "Node: $(node -v), npm: $(npm -v)"
 
-            # 3. Зависимости (нужен prisma CLI для db push и generate)
-            npm ci --include=dev --no-audit --no-fund
-            ./node_modules/.bin/prisma generate
+            # 2. Схема БД (идемпотентно; таблицы уже есть — ничего не меняет).
+            "$PHP_BIN" bin/migrate.php
 
-            # 4. Схема БД
-            ./node_modules/.bin/prisma db push --skip-generate
+            # 3. Портфолио из манифеста (идемпотентно).
+            "$PHP_BIN" bin/seed-portfolio.php || echo "⚠️ портфолио не перенесено"
 
-            # 4.1 Портфолио из манифеста (идемпотентно: повторно ничего не создаёт)
-            node scripts/seed-portfolio.js || echo "⚠️ портфолио не перенесено"
-
-            # 5. Админ создаётся ОДИН раз — при первом деплое, отмеченном отдельным
-            #    маркер-файлом (не .env: он живёт своей жизнью и не должен значить
-            #    «ещё не было администратора»). Дальше логин и пароль меняются
-            #    исключительно через саму админку (раздел «Администраторы») — иначе
-            #    каждый следующий деплой тихо перезаписывал бы пароль, который
-            #    администратор сам сменил. Секреты передаются скрипту напрямую через
-            #    переменные окружения — в .env они больше не записываются.
-            ADMIN_SEEDED_MARKER=".admin-seeded"
-            if [ ! -f "$ADMIN_SEEDED_MARKER" ]; then
+            # 4. Администратор — ОДИН раз, по маркеру. Если старый маркер есть,
+            #    переносим его: пароль меняется только через админку.
+            if [ -f "$OLD_APP/.admin-seeded" ] && [ ! -f .admin-seeded ]; then
+              touch .admin-seeded
+            fi
+            if [ ! -f .admin-seeded ]; then
               if [ -n "${{ env.SEED_ADMIN_LOGIN }}" ] && [ -n "${{ env.SEED_ADMIN_PASSWORD }}" ]; then
                 if SEED_ADMIN_LOGIN="${{ env.SEED_ADMIN_LOGIN }}" \
                    SEED_ADMIN_PASSWORD="${{ env.SEED_ADMIN_PASSWORD }}" \
-                   node scripts/create-admin.js; then
-                  echo "✅ администратор создан"
-                  touch "$ADMIN_SEEDED_MARKER"
+                   "$PHP_BIN" bin/seed-admin.php; then
+                  touch .admin-seeded
                 else
                   echo "⚠️  администратор не создан — попробую на следующем деплое"
                 fi
@@ -362,27 +367,48 @@ jobs:
                 echo "⚠️  SEED_ADMIN_LOGIN/SEED_ADMIN_PASSWORD не заданы — создайте администратора вручную"
               fi
             else
-              echo "ℹ️  Администратор уже был создан раньше — логин/пароль меняются только через саму админку"
+              echo "ℹ️  Администратор уже был создан раньше — логин/пароль меняются только через админку"
             fi
 
-            # 6. Перезапуск: PID-файл, лог, health-check
-            chmod +x scripts/server-start.sh scripts/server-stop.sh scripts/keep-alive.sh scripts/supervise.sh
-            bash scripts/server-start.sh
+            # 5. Диагностика окружения (не валит деплой, но видна в логе).
+            "$PHP_BIN" bin/healthcheck.php || true
 
-            # 7. Watchdog в cron: хостинг убивает процессы после закрытия
-            #    SSH-сессии, а запущенное из cron — живёт.
-            CRON_LINE="* * * * * $APP_PATH/scripts/keep-alive.sh >/dev/null 2>&1"
+            # 6. Уборка старой Node-архитектуры.
+            #    PHP не держит процесс, поэтому супервизор, PID-файлы и
+            #    cron-watchdog больше не нужны — удаляем их безвозвратно.
+            for pidfile in "$OLD_APP"/.run/*.pid; do
+              [ -f "$pidfile" ] || continue
+              OLD_PID="$(cat "$pidfile" 2>/dev/null || true)"
+              if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+                kill "$OLD_PID" 2>/dev/null || true
+                sleep 2
+                kill -9 "$OLD_PID" 2>/dev/null || true
+                echo "⏹  остановлен старый Node-процесс PID $OLD_PID"
+              fi
+            done
+
             if command -v crontab >/dev/null 2>&1; then
-              ( crontab -l 2>/dev/null | grep -v 'keep-alive.sh' || true; echo "$CRON_LINE" ) | crontab -
-              echo "✅ cron: $(crontab -l 2>/dev/null | grep -c 'keep-alive.sh') запись(ей) keep-alive"
-            else
-              echo "⚠️ crontab недоступен — API придётся поднимать после деплоя вручную"
+              KEEP_CRON="$(crontab -l 2>/dev/null | grep -v 'keep-alive.sh' || true)"
+              if [ -n "$KEEP_CRON" ]; then
+                printf '%s\n' "$KEEP_CRON" | crontab -
+              else
+                crontab -r 2>/dev/null || true
+              fi
+              echo "✅ cron очищен от keep-alive.sh"
             fi
 
-            echo "=== содержимое каталога бэкенда ==="
-            ls -la "$APP_PATH"
+            rm -f "$SITE/api.php"
 
-            echo "✅ Бэкенд обновлён"
+            if [ -n "$OLD_APP" ] && [ "$OLD_APP" != "$API_DIR" ] && [ -d "$OLD_APP" ]; then
+              rm -rf "$OLD_APP/dist" "$OLD_APP/node_modules" "$OLD_APP/scripts" \
+                     "$OLD_APP/prisma" "$OLD_APP/src" "$OLD_APP/package.json" \
+                     "$OLD_APP/package-lock.json" "$OLD_APP/logs" "$OLD_APP/.run" "$OLD_APP/uploads"
+              echo "✅ старые Node-файлы удалены из $OLD_APP (сохранён только .env)"
+            fi
+
+            echo "=== /api ==="
+            ls -la "$API_DIR" | head -20
+            echo "✅ PHP-бэкенд обновлён (постоянного процесса нет)"
 
   # ──────────────────────────────────────────────
   # NOTIFICATION

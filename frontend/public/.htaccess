@@ -1,14 +1,17 @@
-# SPA-роутинг для статики на Apache (shared-хостинг reg.ru).
-# Нужен только если фронтенд лежит на Хост-А, а API — на VPS (api.<домен>).
+# SPA-роутинг + PHP API на Apache (shared-хостинг reg.ru).
+# Фронтенд — статика в веб-корне, API — PHP в каталоге /api (Apache запускает
+# его сам через FastCGI, постоянного процесса нет).
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
 
-  # API обслуживает локальный NestJS на 127.0.0.1:3001.
-  # mod_proxy на shared-хостинге выключен, поэтому ходим через api.php (curl).
+  # API обслуживает PHP front controller /api/index.php.
+  # Условие защищает от повторного переписывания уже переписанного запроса.
+  RewriteCond %{REQUEST_URI} !^/api/index\.php$
+  RewriteRule ^api(/.*)?$ /api/index.php [L,QSA]
+
   # Фото (/uploads/portfolio/*) лежат прямо в веб-корне и отдаются статикой,
-  # без прокси — иначе галерея грузится медленно.
-  RewriteRule ^api(/.*)?$ /api.php [L,QSA]
+  # без PHP — иначе галерея грузится медленно.
 
   # Существующие файлы и папки отдаём как есть
   RewriteCond %{REQUEST_FILENAME} -f [OR]

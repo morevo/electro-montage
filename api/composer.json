@@ -1,0 +1,26 @@
+{
+  "name": "electromontage/api",
+  "description": "PHP backend for ElectroMontage admin panel (replacement for the NestJS API)",
+  "type": "project",
+  "license": "MIT",
+  "require": {
+    "php": ">=8.1",
+    "ext-fileinfo": "*",
+    "ext-json": "*",
+    "ext-mbstring": "*",
+    "ext-pdo": "*",
+    "firebase/php-jwt": "^6.10"
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\": "src/"
+    }
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "sort-packages": true
+  },
+  "scripts": {
+    "lint": "find src bin index.php -name '*.php' -print0 | xargs -0 -n1 php -l"
+  }
+}
