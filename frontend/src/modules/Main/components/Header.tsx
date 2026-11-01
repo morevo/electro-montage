@@ -191,7 +191,7 @@ export default function Header() {
             onClick={(e) => handleNavClick(e, '#contacts')}
             className="btn-primary text-center"
             >
-            npmСвяжитесь с нами
+            Свяжитесь с нами
           </a>
       </motion.div>
       </nav>
