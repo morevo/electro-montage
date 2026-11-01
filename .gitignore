@@ -19,11 +19,10 @@ secrets/
 ДОСТУПЫ.local.md
 CREDENTIALS.local.md
 
-# ── Загруженные файлы и рантайм бэкенда ──
-backend/uploads/
+# ── Загруженные файлы и рантайм PHP-бэкенда ──
 uploads/
-backend/.run/
-backend/logs/
+api/vendor/
+api/.env
 
 # ── IDE / системное ──
 .idea/

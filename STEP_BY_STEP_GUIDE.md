@@ -1,6 +1,11 @@
 # 📋 Пошаговый гайд: локально → прод на reg.ru
 
-Актуально на: прод — VPS с **MySQL 8 (нативно)** и **Node.js**, без Docker.
+> ⚠️ **Бэкенд теперь PHP (`api/`).** Node.js на проде больше не нужен: Apache
+> сам выполняет PHP по запросу. Команды `npm run start:dev`, `prisma db push`
+> и `server-start.sh` заменены на `composer install`, `php bin/setup.php` и
+> `php -S ...` — см. [LOCAL_DEV.md](LOCAL_DEV.md) и [CLAUDE.md](CLAUDE.md).
+
+Актуально на: прод — **MySQL 8 (нативно)** и **PHP 8.1+**, без Docker.
 
 ---
 

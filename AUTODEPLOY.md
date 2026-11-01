@@ -1,5 +1,10 @@
 # 🚀 Автодеплой на VPS (MySQL 8 нативно, без Docker)
 
+> ⚠️ **Устарело в части бэкенда.** Бэкенд теперь PHP (`api/`), без Node-процесса,
+> супервизора и cron-watchdog'а. Актуальное описание деплоя —
+> [CLAUDE.md](CLAUDE.md#-auto-deploy-to-regru-github-actions) и
+> [docs/PHP_MIGRATION.md](docs/PHP_MIGRATION.md). Секреты GitHub Actions — те же.
+
 Инструкция под конкретную ситуацию: **есть VPS**, на нём **только MySQL 8,
 установленный нативно**, и **Docker поставить нельзя** (нет прав / не нужен).
 Деплой полностью работает по SSH: ни Docker, ни FTP-сервер на VPS не требуются.

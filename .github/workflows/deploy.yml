@@ -120,7 +120,7 @@ jobs:
       - name: Verify deployed files
         if: env.REG_RU_SSH_HOST != '' && env.REG_RU_FRONTEND_MODE != 'ftp'
         run: |
-          CMD="stat -c '%n | %y' '${{ steps.static.outputs.dir }}/index.html'; grep -oE 'assets/index-[A-Za-z0-9_-]+\\\\.(js|css)' '${{ steps.static.outputs.dir }}/index.html'"
+          CMD="stat -c '%n | %y' '${{ steps.static.outputs.dir }}/index.html'; grep -oE 'assets/index-[A-Za-z0-9_-]+\\.(js|css)' '${{ steps.static.outputs.dir }}/index.html'"
           ssh -p "${REG_RU_SSH_PORT:-22}" "${REG_RU_SSH_USER}@${REG_RU_SSH_HOST}" "$CMD"
 
       # ── Вариант B: FTPS на shared-хостинг (только если режим ftp) ──

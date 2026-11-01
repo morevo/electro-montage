@@ -1,5 +1,12 @@
 # 🔐 Полный справочник переменных окружения и серверных данных
 
+> ⚠️ **Бэкенд теперь PHP.** Конфиг живёт в `api/.env` (см. `api/.env.example`),
+> порт `PORT` больше не нужен — Apache запускает PHP по запросу.
+> Актуальные переменные: `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`,
+> `JWT_ACCESS_TTL`, `JWT_REFRESH_TTL`, `APP_ENV`, `FRONTEND_URL`, `UPLOAD_DIR`,
+> `MAX_FILE_SIZE`, `PORTFOLIO_MANIFEST`, `SEED_ADMIN_LOGIN`, `SEED_ADMIN_PASSWORD`.
+> Подробности — [CLAUDE.md](CLAUDE.md) и [LOCAL_DEV.md](LOCAL_DEV.md).
+
 ---
 
 ## 1️⃣ GitHub Actions Secrets (Settings → Secrets → Actions)
