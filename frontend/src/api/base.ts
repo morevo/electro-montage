@@ -37,7 +37,12 @@ const MAX_RETRIES = 2;
 
 function isRetryableError(error: AxiosError): boolean {
   if (!error.response) return true; // сеть недоступна / соединение сброшено
-  return error.response.status === 502;
+  if (error.response.status === 502) return true;
+  // 500 на GET — например, кратковременный "pool timeout" при получении
+  // соединения с MySQL на общем сервере хостинга под конкуренцией с другими
+  // клиентами. GET ничего не меняет, повторить его безопасно.
+  const method = error.config?.method?.toUpperCase();
+  return error.response.status === 500 && method === 'GET';
 }
 
 function delay(ms: number): Promise<void> {
